@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 * {
   margin: 0;
   padding: 0;
@@ -88,3 +89,78 @@ body::after {
   margin-left: 650px;
  
 }
+=======
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  color: white; 
+  background-color: #f0f0f0;
+  background-image: url(background.jpg);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-attachment: fixed;
+  background-size: cover;
+}
+
+
+.logo-box{
+  height: 22px;
+  display: flex;
+  align-items: center;
+
+}
+
+.aclc-logo {
+  height: 70px;
+  width: auto;
+}
+    
+        
+
+.main-header {
+  background-color:#233b76;
+  width: 100%;
+  position: absolute;
+  z-index: 10;
+}
+
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.log {
+  color: white;
+  background: none;
+    text-decoration: none;
+    font-size: 14px;
+    padding: 5px 12px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    transition: background-color 0.2s, border-color 0.2s;
+    display: inline-block;
+    cursor: pointer;
+}
+
+.reg {
+  color: white;
+  background: none;
+    text-decoration: none;
+    font-size: 14px;
+    padding: 5px 12px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    transition: background-color 0.2s, border-color 0.2s;
+    display: inline-block;
+    cursor: pointer;
+}
+>>>>>>> 1855cf279e6b474bfcad14574796ea93e45d79c6

@@ -1,4 +1,8 @@
 <?php
+<<<<<<< HEAD
+=======
+// db_connect.php
+>>>>>>> 1855cf279e6b474bfcad14574796ea93e45d79c6
 
 $host = "localhost";
 $user = "root";

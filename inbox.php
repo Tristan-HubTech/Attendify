@@ -1,5 +1,9 @@
 <?php
+<<<<<<< HEAD
 
+=======
+// inbox.php
+>>>>>>> 1855cf279e6b474bfcad14574796ea93e45d79c6
 include('db_connect.php');
 session_start();
 
@@ -10,11 +14,19 @@ if (!$phone) {
     exit;
 }
 
+<<<<<<< HEAD
+=======
+// Optional protection: allow viewing only if session reset_phone matches (keeps it demo-safe)
+>>>>>>> 1855cf279e6b474bfcad14574796ea93e45d79c6
 if (isset($_SESSION['reset_phone']) && $_SESSION['reset_phone'] !== $phone) {
     echo "You are not allowed to view this inbox. Start from the reset flow.";
     exit;
 }
 
+<<<<<<< HEAD
+=======
+// Fetch messages
+>>>>>>> 1855cf279e6b474bfcad14574796ea93e45d79c6
 $stmt = $conn->prepare("SELECT id, body, created_at, delivered FROM sms_messages WHERE phone = ? ORDER BY created_at DESC");
 $stmt->bind_param('s', $phone);
 $stmt->execute();
