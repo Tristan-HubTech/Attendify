@@ -16,16 +16,12 @@
   <div class="input-group">
     <label>Email:</label>
     <input type="email" name="email" required><br>
-
-    <label>Phone (Student):</label>
-    <input type="text" name="student_phone" required><br>
-
+    <label>Student Phone:</label>
+    <input type="text" name="student_phone" placeholder="(+63)xxx xxx xxxx" required><br><br>
     <label>Parent/Guardian Phone:</label>
-    <input type="text" name="guardian_phone" required><br>
-
+    <input type="text" name="parent_phone" placeholder="(+63)xxx xxx xxxx" required><br><br>
     <label>Password:</label>
     <input type="password" name="password" required><br>
-
     <label>Confirm Password:</label>
     <input type="password" name="password2" required><br>
 

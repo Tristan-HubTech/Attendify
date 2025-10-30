@@ -1,4 +1,0 @@
-body { font-family: Arial, sans-serif; background: #f4f4f4; }
-.login-box, .dashboard { max-width: 500px; margin: 50px auto; padding: 20px; background: #fff; border-radius: 10px; }
-button, .btn { padding: 10px 20px; background: #007BFF; color: white; border: none; cursor: pointer; border-radius: 5px; }
-.logout-btn { background: #d9534f; color: white; padding: 8px 12px; border-radius: 5px; text-decoration: none; }
