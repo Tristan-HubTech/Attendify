@@ -13,28 +13,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($pw) || $pw !== $pw2) die("Passwords do not match.");
     if (strlen($pw) < 6) die("Password must be at least 6 characters.");
 
-<<<<<<< HEAD
    
-=======
-    // Check if email already exists
->>>>>>> 1855cf279e6b474bfcad14574796ea93e45d79c6
     $stmt = $conn->prepare("SELECT id FROM users WHERE email=?");
     $stmt->bind_param("s", $email);
     $stmt->execute();
     $stmt->store_result();
     if ($stmt->num_rows > 0) die("Email is already registered.");
 
-<<<<<<< HEAD
    
     $hash = password_hash($pw, PASSWORD_DEFAULT);
 
  
-=======
-    // Hash password
-    $hash = password_hash($pw, PASSWORD_DEFAULT);
-
-    // Insert user
->>>>>>> 1855cf279e6b474bfcad14574796ea93e45d79c6
     $stmt2 = $conn->prepare("INSERT INTO users (email, phone, password_hash) VALUES (?, ?, ?)");
     $stmt2->bind_param("sss", $email, $phone, $hash);
     if ($stmt2->execute()) {

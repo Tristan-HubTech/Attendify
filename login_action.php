@@ -20,12 +20,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $_SESSION['user_id'] = $user['id'];
     session_regenerate_id(true);
 
-<<<<<<< HEAD
-    
-    header("Location: dashboard.php");
-    exit();
-=======
     echo "Logged in successfully. <a href='dashboard.php'>Go to Dashboard</a>";
->>>>>>> 1855cf279e6b474bfcad14574796ea93e45d79c6
 }
 ?>

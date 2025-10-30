@@ -1,8 +1,5 @@
 <?php
-<<<<<<< HEAD
-=======
 // config.php
->>>>>>> 1855cf279e6b474bfcad14574796ea93e45d79c6
 session_start();
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -13,11 +10,7 @@ require 'phpmailer/src/PHPMailer.php';
 require 'phpmailer/src/SMTP.php';
 
 define('SMTP_EMAIL', 'tyasuham@gmail.com');
-<<<<<<< HEAD
-define('SMTP_APP_PASSWORD', 'ymxqoywibfhvmupf'); // your app password
-=======
 define('SMTP_APP_PASSWORD', 'xxxxxxxx'); // your app password
->>>>>>> 1855cf279e6b474bfcad14574796ea93e45d79c6
 
 function sendEmailOTP($toEmail, $subject, $body) {
     $mail = new PHPMailer(true);

@@ -4,7 +4,6 @@
 <head>
     <title>Reset Password</title>
 </head>
-<<<<<<< HEAD
 <link rel="stylesheet" href="request_reset.css">
 <body>
       <div class="Track">
@@ -20,13 +19,6 @@
     <button type="submit">Send OTP</button>
      </div>   
     </div>
-=======
-<body>
-<h2>Reset Password</h2>
-<form method="post" action="send_reset_otp.php">
-    <label>Email: <input type="email" name="email" required></label><br>
-    <button type="submit">Send OTP</button>
->>>>>>> 1855cf279e6b474bfcad14574796ea93e45d79c6
 </form>
 </body>
 </html>
