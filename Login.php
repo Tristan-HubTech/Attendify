@@ -1,4 +1,13 @@
-<?php require 'db_connect.php'; ?>
+<?php require 'db_connect.php'; 
+ if (isset($_GET['error'])): ?>
+    <p style="color:red; text-align:center;">
+        <?php 
+            if ($_GET['error'] === 'empty_fields') echo "Please fill in both fields.";
+            if ($_GET['error'] === 'invalid_credentials') echo "Invalid email or password.";
+        ?>
+    </p>
+<?php endif; ?>
+
 <!DOCTYPE html>
 <html>
 <head>

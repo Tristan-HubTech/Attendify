@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 * {
   margin: 0;
   padding: 0;
@@ -7,160 +6,102 @@
 
 body {
   font-family: Arial, sans-serif;
-  color: white;
-  height: 100vh;
-  overflow: hidden;
-  position: relative;
-}
-
-
-body::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: url("background.jpg") no-repeat center center fixed;
-  background-size: cover;
-  filter: blur(5px); 
-  z-index: -2; 
-}
-
-body::after {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.4); 
-  z-index: -1;
-}
-.main-header {
-  width: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-  background-color: rgba(35, 59, 118, 0.9);
-  display: flex;
-  justify-content: space-between; 
-  align-items: center;
-  padding: 15px 40px;
-  z-index: 10;
-  height: 120px;
-}
-
-
-.aclc-logo {
-  height: 90px;
-  width: auto;
-  margin-right: auto;
-}
-
-
-.button {
-  background: none;
-  color: white;
-  border: 2px solid white;
-  padding: 8px 25px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-decoration: none;
-  display: flex;
-  margin: 10px;
-}
-
-.button:hover {
-  background: white;
-  color: #233b76;
-}
-
-
-.login-btn {
-  margin-left: 10px;
- 
-}
-
-.register-btn {
-  margin-left: 650px;
- 
-}
-=======
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-  font-family: Arial, sans-serif;
-  color: white; 
-  background-color: #f0f0f0;
-  background-image: url(background.jpg);
+  background-image: url('background.jpg');
   background-repeat: no-repeat;
   background-position: center;
   background-attachment: fixed;
   background-size: cover;
+  min-height: 100vh;
+  color: white;
 }
 
+/* HEADER BAR */
+.main-header {
+  background-color: #233b76;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  padding: 12px 0;
+}
 
-.logo-box{
-  height: 22px;
+/* FLEX CONTAINER */
+.header-content {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 0 30px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+}
 
+/* LEFT LOGO */
+.logo-box {
+  flex: 1;
+  display: flex;
+  align-items: center;
 }
 
 .aclc-logo {
-  height: 70px;
+  height: 60px;
   width: auto;
 }
-    
-        
 
-.main-header {
-  background-color:#233b76;
-  width: 100%;
-  position: absolute;
-  z-index: 10;
+/* CENTER TITLE */
+.center-title {
+  flex: 1;
+  text-align: center;
 }
 
-.header-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px 20px;
+.main-title {
+  font-size: 28px;
+  font-weight: bold;
+  color: white;
+  letter-spacing: 1px;
+}
+
+/* RIGHT BUTTONS */
+.button-box {
+  flex: 1;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
-.log {
+.log, .reg {
   color: white;
-  background: none;
-    text-decoration: none;
-    font-size: 14px;
-    padding: 5px 12px;
-    border: 1px solid transparent;
-    border-radius: 3px;
-    transition: background-color 0.2s, border-color 0.2s;
-    display: inline-block;
-    cursor: pointer;
+  text-decoration: none;
+  font-size: 14px;
+  padding: 8px 16px;
+  border: 1px solid white;
+  border-radius: 5px;
+  transition: all 0.3s ease;
 }
 
-.reg {
-  color: white;
-  background: none;
-    text-decoration: none;
-    font-size: 14px;
-    padding: 5px 12px;
-    border: 1px solid transparent;
-    border-radius: 3px;
-    transition: background-color 0.2s, border-color 0.2s;
-    display: inline-block;
-    cursor: pointer;
+.log:hover, .reg:hover {
+  background-color: #e21b23;
+  border-color: #e21b23;
 }
->>>>>>> 1855cf279e6b474bfcad14574796ea93e45d79c6
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 10px;
+  }
+
+  .main-title {
+    font-size: 22px;
+  }
+
+  .aclc-logo {
+    height: 50px;
+  }
+
+  .button-box {
+    justify-content: center;
+  }
+}

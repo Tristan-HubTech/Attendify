@@ -1,13 +1,12 @@
 <?php
+$servername = "localhost";
+$username = "root";
+$password = "";
+$database = "system_attendance"; // make sure this matches what you created
 
-$host = "localhost";
-$user = "root";
-$pass = "";
-$db   = "System_attendance";
-
-$conn = new mysqli($host, $user, $pass, $db);
+$conn = new mysqli($servername, $username, $password, $database);
 
 if ($conn->connect_error) {
-    die("Database connection failed: " . $conn->connect_error);
+    die("Connection failed: " . $conn->connect_error);
 }
 ?>

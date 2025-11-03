@@ -1,4 +1,189 @@
-body { font-family: Arial, sans-serif; background: #f4f4f4; }
-.login-box, .dashboard { max-width: 500px; margin: 50px auto; padding: 20px; background: #fff; border-radius: 10px; }
-button, .btn { padding: 10px 20px; background: #007BFF; color: white; border: none; cursor: pointer; border-radius: 5px; }
-.logout-btn { background: #d9534f; color: white; padding: 8px 12px; border-radius: 5px; text-decoration: none; }
+/* Global Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  background: #f1f3f6;
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ===== Sidebar ===== */
+.sidebar {
+  width: 230px;
+  background: #0a1e4f;
+  color: #fff;
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sidebar img {
+  width: 90px;
+  height: auto;
+  margin-bottom: 10px;
+}
+
+.sidebar h3 {
+  font-size: 16px;
+  text-align: center;
+  margin-bottom: 30px;
+  color: #fff;
+}
+
+.sidebar a {
+  display: block;
+  color: #fff;
+  text-decoration: none;
+  padding: 12px 20px;
+  margin: 5px 0;
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  transition: 0.3s;
+  border-left: 4px solid transparent;
+}
+
+.sidebar a:hover,
+.sidebar a.active {
+  background: #1d3557;
+  border-left: 4px solid #e63946;
+}
+
+/* ===== Main Section ===== */
+.main {
+  margin-left: 230px;
+  width: calc(100% - 230px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== Top Bar ===== */
+.topbar {
+  background: #1d3557;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 25px;
+  height: 60px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.topbar h2 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.topbar .profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+}
+
+.topbar .profile span {
+  font-size: 14px;
+  color: #f1f1f1;
+}
+
+/* ===== Content Container ===== */
+.container {
+  padding: 25px;
+}
+
+.card {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  padding: 20px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.card h2 {
+  font-size: 18px;
+  color: #1d3557;
+  margin-bottom: 15px;
+  border-bottom: 2px solid #1d3557;
+  padding-bottom: 5px;
+}
+
+/* ===== Form Inputs ===== */
+label {
+  font-weight: 600;
+  color: #333;
+  margin-right: 10px;
+}
+
+input[type="date"],
+select {
+  padding: 6px 10px;
+  margin-right: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+/* ===== Buttons ===== */
+button,
+input[type=submit] {
+  background: #1d3557;
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+button:hover,
+input[type=submit]:hover {
+  background: #457b9d;
+}
+
+/* ===== Table ===== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+th,
+td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: center;
+  font-size: 14px;
+}
+
+th {
+  background: #0a1e4f;
+  color: white;
+}
+
+tr:nth-child(even) {
+  background: #f9f9f9;
+}
+
+/* ===== Flash Message ===== */
+.message {
+  background: #e9f7ef;
+  color: #155724;
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+  text-align: center;
+  font-weight: 600;
+}
