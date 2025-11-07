@@ -2,68 +2,73 @@
 session_start();
 require '../db_connect.php';
 
-// ✅ Restrict access to teachers only
+// ✅ Restrict access to teachers
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
     header("Location: ../login.php");
     exit();
 }
 
 $teacher_id = $_SESSION['user_id'];
-$message = "";
 
-/* ---------- Fetch teacher info ---------- */
+/* ---------- Fetch teacher name ---------- */
 $teacher_name = $_SESSION['email'];
-$profile_image = "../uploads/teachers/default.png";
+$stmt = $conn->prepare("SELECT full_name FROM teacher_profiles WHERE teacher_id = ?");
+if ($stmt) {
+    $stmt->bind_param("i", $teacher_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($row = $res->fetch_assoc()) {
+        $teacher_name = $row['full_name'];
+    }
+    $stmt->close();
+}
 
-$stmt = $conn->prepare("SELECT full_name, profile_image FROM teacher_profiles WHERE teacher_id = ?");
+/* ---------- Add new subject ---------- */
+$message = "";
+if (isset($_POST['add_subject'])) {
+    $name = trim($_POST['subject_name']);
+    $class_time = $_POST['class_time'] ?? '08:00:00';
+
+    if ($name !== '') {
+        $stmt = $conn->prepare("INSERT INTO subjects (name, class_time, teacher_id) VALUES (?, ?, ?)");
+        if ($stmt) {
+            $stmt->bind_param("ssi", $name, $class_time, $teacher_id);
+            $stmt->execute();
+            $stmt->close();
+            $message = "✅ Subject added successfully.";
+        } else {
+            $message = "❌ Database prepare failed: " . $conn->error;
+        }
+    } else {
+        $message = "⚠️ Please enter a subject name.";
+    }
+}
+
+/* ---------- Delete subject ---------- */
+if (isset($_GET['delete'])) {
+    $id = intval($_GET['delete']);
+    $stmt = $conn->prepare("DELETE FROM subjects WHERE id = ? AND teacher_id = ?");
+    $stmt->bind_param("ii", $id, $teacher_id);
+    $stmt->execute();
+    $stmt->close();
+    $message = "🗑️ Subject deleted successfully.";
+}
+
+/* ---------- Fetch subjects ---------- */
+$subjects = [];
+$stmt = $conn->prepare("SELECT * FROM subjects WHERE teacher_id = ?");
 $stmt->bind_param("i", $teacher_id);
 $stmt->execute();
 $res = $stmt->get_result();
-if ($row = $res->fetch_assoc()) {
-    $teacher_name = $row['full_name'];
-    if (!empty($row['profile_image']) && file_exists("../uploads/teachers/" . $row['profile_image'])) {
-        $profile_image = "../uploads/teachers/" . $row['profile_image'];
-    }
-}
+while ($row = $res->fetch_assoc()) $subjects[] = $row;
 $stmt->close();
-
-/* ---------- Add Subject ---------- */
-if (isset($_POST['add_subject'])) {
-    $subject_name = trim($_POST['subject_name']);
-
-    if ($subject_name === "") {
-        $message = "⚠️ Please enter a subject name.";
-    } else {
-        $stmt = $conn->prepare("INSERT INTO subjects (subject_name, teacher_id) VALUES (?, ?)");
-        $stmt->bind_param("si", $subject_name, $teacher_id);
-        if ($stmt->execute()) {
-            $message = "✅ Subject added successfully!";
-        } else {
-            $message = "❌ Error adding subject.";
-        }
-        $stmt->close();
-    }
-}
-
-/* ---------- Delete Subject ---------- */
-if (isset($_GET['delete'])) {
-    $subject_id = intval($_GET['delete']);
-    $conn->query("DELETE FROM subjects WHERE id = $subject_id AND teacher_id = $teacher_id");
-    header("Location: manage_subjects.php");
-    exit();
-}
-
-/* ---------- Fetch Subjects ---------- */
-$subjects = $conn->query("SELECT * FROM subjects WHERE teacher_id = $teacher_id ORDER BY subject_name ASC");
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Manage Subjects | Attendify</title>
+<title>Manage Subjects</title>
 <style>
-/* ---------- GENERAL LAYOUT ---------- */
 body {
     margin: 0;
     font-family: 'Segoe UI', Arial, sans-serif;
@@ -72,7 +77,7 @@ body {
     height: 100vh;
 }
 
-/* ---------- SIDEBAR ---------- */
+/* SIDEBAR */
 .sidebar {
     width: 210px;
     background: #17345f;
@@ -106,7 +111,7 @@ body {
     font-size: 14px;
     transition: 0.3s;
 }
-.sidebar a:hover {
+.sidebar a:hover, .sidebar a.active {
     background: #e21b23;
 }
 .logout {
@@ -121,7 +126,7 @@ body {
     font-size: 14px;
 }
 
-/* ---------- MAIN AREA ---------- */
+/* MAIN */
 .main {
     margin-left: 210px;
     flex-grow: 1;
@@ -130,7 +135,7 @@ body {
     height: 100vh;
 }
 
-/* ---------- TOPBAR ---------- */
+/* TOPBAR */
 .topbar {
     background: white;
     padding: 12px 25px;
@@ -157,16 +162,10 @@ body {
     border: 2px solid #17345f;
 }
 
-/* ---------- CONTENT ---------- */
+/* CONTENT */
 .content {
     padding: 20px 25px;
     overflow-y: auto;
-}
-h3 {
-    color: #17345f;
-    border-bottom: 2px solid #e21b23;
-    padding-bottom: 5px;
-    margin-bottom: 10px;
 }
 .message {
     background: #e7f3e7;
@@ -182,47 +181,21 @@ h3 {
     border-radius: 5px;
     margin-bottom: 15px;
 }
-
-/* ---------- FORM ---------- */
-form {
-    background: white;
-    padding: 15px;
-    border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-}
-input[type="text"] {
-    padding: 10px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    width: 80%;
-    margin-right: 10px;
-}
-button {
-    background: #17345f;
-    color: white;
-    border: none;
-    padding: 10px 16px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: 0.2s;
-}
-button:hover {
-    background: #e21b23;
+h3 {
+    color: #17345f;
+    border-bottom: 2px solid #e21b23;
+    padding-bottom: 5px;
 }
 
-/* ---------- TABLE ---------- */
+/* TABLE */
 table {
     width: 100%;
     border-collapse: collapse;
-    background: white;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    margin-top: 15px;
 }
 th, td {
     border: 1px solid #ccc;
-    padding: 10px;
+    padding: 8px;
     text-align: center;
     font-size: 14px;
 }
@@ -233,13 +206,28 @@ th {
 tr:nth-child(even) {
     background: #f9f9f9;
 }
-a.delete-btn {
-    color: red;
-    text-decoration: none;
-    font-weight: bold;
+input[type="text"], input[type="time"] {
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 90%;
 }
-a.delete-btn:hover {
-    text-decoration: underline;
+button {
+    background: #17345f;
+    color: white;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+button:hover {
+    background: #e21b23;
+}
+.delete {
+    background: #e21b23;
+}
+.delete:hover {
+    background: #b91c1c;
 }
 </style>
 </head>
@@ -248,19 +236,20 @@ a.delete-btn:hover {
 <div class="sidebar">
     <img src="../ama.png" alt="ACLC Logo">
     <h2>Teacher Panel</h2>
-    <a href="attendance.php">📊 Attendance</a>
+      <a href="attendance.php">📊 Attendance</a>
     <a href="manage_students.php">🎓 Manage Students</a>
     <a href="manage_subjects.php">📘 Manage Subjects</a>
     <a href="teacher_profile.php">👤 Profile</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
 
+
 <div class="main">
     <div class="topbar">
         <h1>Manage Subjects</h1>
         <div class="profile">
             <span>👋 <?= htmlspecialchars($teacher_name); ?></span>
-            <img src="<?= htmlspecialchars($profile_image); ?>" alt="Profile">
+            <img src="../uploads/teachers/default.png" alt="Profile">
         </div>
     </div>
 
@@ -273,26 +262,33 @@ a.delete-btn:hover {
 
         <h3>➕ Add Subject</h3>
         <form method="POST">
-            <input type="text" name="subject_name" placeholder="Enter subject name (e.g. IT101 - Programming 1)" required>
+            <input type="text" name="subject_name" placeholder="Subject Name" required>
+            <input type="time" name="class_time" required>
             <button type="submit" name="add_subject">Add</button>
         </form>
 
         <h3>📋 Current Subjects</h3>
-        <?php if ($subjects->num_rows > 0): ?>
-            <table>
-                <tr>
-                    <th>ID</th>
-                    <th>Subject Name</th>
-                    <th>Action</th>
-                </tr>
-                <?php while ($sub = $subjects->fetch_assoc()): ?>
-                <tr>
-                    <td><?= $sub['id']; ?></td>
-                    <td><?= htmlspecialchars($sub['subject_name']); ?></td>
-                    <td><a href="?delete=<?= $sub['id']; ?>" class="delete-btn" onclick="return confirm('Delete this subject?')">Delete</a></td>
-                </tr>
-                <?php endwhile; ?>
-            </table>
+        <?php if (count($subjects) > 0): ?>
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>Subject Name</th>
+                <th>Class Time</th>
+                <th>Actions</th>
+            </tr>
+            <?php foreach ($subjects as $sub): ?>
+            <tr>
+                <td><?= $sub['id']; ?></td>
+                <td><?= htmlspecialchars($sub['name']); ?></td>
+                <td><?= htmlspecialchars($sub['class_time']); ?></td>
+                <td>
+                    <a href="?delete=<?= $sub['id']; ?>" onclick="return confirm('Delete this subject?')">
+                        <button type="button" class="delete">🗑️ Delete</button>
+                    </a>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        </table>
         <?php else: ?>
             <p><i>No subjects found yet.</i></p>
         <?php endif; ?>

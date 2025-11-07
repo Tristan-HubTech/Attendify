@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
 $teacher_id = $_SESSION['user_id'];
 $message = "";
 
-// ✅ Fetch profile data
+/* ---------- Fetch teacher profile ---------- */
 $stmt = $conn->prepare("SELECT * FROM teacher_profiles WHERE teacher_id = ?");
 $stmt->bind_param("i", $teacher_id);
 $stmt->execute();
@@ -24,37 +24,32 @@ if (!$profile) {
     exit();
 }
 
-// ✅ Handle profile update
+/* ---------- Update profile ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['full_name']);
     $department = trim($_POST['department']);
     $phone = trim($_POST['phone']);
     $address = trim($_POST['address']);
-    $image_name = $profile['profile_image'];
+    $image_name = $profile['profile_image'] ?? 'default.png';
 
-    // ✅ Handle new image upload
+    // Handle image upload
     if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === 0) {
         $upload_dir = "../uploads/teachers/";
-        if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
-
-        $allowed = ['jpg', 'jpeg', 'png'];
+        $allowed = ['jpg', 'jpeg', 'png', 'webp'];
         $ext = strtolower(pathinfo($_FILES['profile_image']['name'], PATHINFO_EXTENSION));
 
         if (in_array($ext, $allowed)) {
             $image_name = 'teacher_' . $teacher_id . '_' . time() . '.' . $ext;
-            $target_path = $upload_dir . $image_name;
-            if (move_uploaded_file($_FILES['profile_image']['tmp_name'], $target_path)) {
-                // Optionally delete old image if not default
-                if (!empty($profile['profile_image']) && $profile['profile_image'] !== 'default.png') {
-                    @unlink($upload_dir . $profile['profile_image']);
-                }
-            }
+            move_uploaded_file($_FILES['profile_image']['tmp_name'], $upload_dir . $image_name);
         } else {
-            $message = "⚠️ Only JPG, JPEG, or PNG files are allowed.";
+            $message = "⚠️ Only JPG, JPEG, PNG, or WEBP files are allowed.";
         }
     }
 
-    $stmt = $conn->prepare("UPDATE teacher_profiles SET full_name=?, department=?, phone=?, address=?, profile_image=? WHERE teacher_id=?");
+    // Update database
+    $stmt = $conn->prepare("UPDATE teacher_profiles 
+        SET full_name=?, department=?, phone=?, address=?, profile_image=? 
+        WHERE teacher_id=?");
     $stmt->bind_param("sssssi", $name, $department, $phone, $address, $image_name, $teacher_id);
 
     if ($stmt->execute()) {
@@ -69,12 +64,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $stmt->close();
 }
+
+/* ---------- Default image fallback ---------- */
+$profile_image = "../uploads/teachers/default.png";
+if (!empty($profile['profile_image']) && file_exists("../uploads/teachers/" . $profile['profile_image'])) {
+    $profile_image = "../uploads/teachers/" . $profile['profile_image'];
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Edit Profile - ACLC Teacher Dashboard</title>
+<title>ACLC Teacher Profile</title>
 <style>
 body {
     margin: 0;
@@ -118,9 +120,7 @@ body {
     font-size: 14px;
     transition: 0.3s;
 }
-.sidebar a:hover {
-    background: #e21b23;
-}
+.sidebar a:hover { background: #e21b23; }
 .logout {
     background: #e21b23;
     color: white;
@@ -171,8 +171,13 @@ body {
 
 /* CONTENT */
 .content {
-    padding: 30px 40px;
+    padding: 20px 25px;
     overflow-y: auto;
+}
+h3 {
+    color: #17345f;
+    border-bottom: 2px solid #e21b23;
+    padding-bottom: 5px;
 }
 .message {
     background: #e7f3e7;
@@ -188,71 +193,73 @@ body {
     border-radius: 5px;
     margin-bottom: 15px;
 }
-h3 {
-    color: #17345f;
-    border-bottom: 2px solid #e21b23;
-    padding-bottom: 5px;
-    margin-bottom: 20px;
-}
 
 /* FORM */
-form {
-    max-width: 500px;
-    margin: 0 auto;
+.form-container {
     background: white;
-    padding: 25px;
+    padding: 30px;
     border-radius: 10px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    max-width: 500px;
+    margin: 30px auto;
+    text-align: center;
+}
+form {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
+    text-align: left;
 }
-input[type="text"], textarea {
+input, textarea {
+    width: 100%;
     padding: 10px;
     border: 1px solid #ccc;
-    border-radius: 5px;
+    border-radius: 6px;
     font-size: 14px;
 }
 button {
     background: #17345f;
     color: white;
-    padding: 10px;
+    padding: 10px 15px;
     border: none;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
-    font-size: 14px;
+    margin-top: 10px;
 }
-button:hover {
-    background: #e21b23;
-}
+button:hover { background: #e21b23; }
 
-/* IMAGE */
-.profile-pic {
-    width: 100px;
-    height: 100px;
+.preview {
+    width: 120px;
+    height: 120px;
     border-radius: 50%;
+    border: 3px solid #17345f;
     object-fit: cover;
-    border: 2px solid #17345f;
     display: block;
-    margin: 0 auto 10px;
+    margin: 10px auto 20px;
     cursor: pointer;
 }
 </style>
 </head>
 <body>
 
+<!-- Sidebar -->
 <div class="sidebar">
     <img src="../ama.png" alt="ACLC Logo">
     <h2>Teacher Panel</h2>
+        <a href="attendance.php">📊 Attendance</a>
+    <a href="manage_students.php">🎓 Manage Students</a>
+    <a href="manage_subjects.php">📘 Manage Subjects</a>
+    <a href="teacher_profile.php">👤 Profile</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
 
+<!-- Main content -->
 <div class="main">
     <div class="topbar">
-        <h1>Edit Profile</h1>
+        <h1>👤 Edit Profile</h1>
         <div class="profile">
             <span>👋 <?= htmlspecialchars($profile['full_name']); ?></span>
-            <img src="../uploads/teachers/<?= htmlspecialchars($profile['profile_image'] ?: 'default.png'); ?>" alt="Profile">
+            <img src="<?= htmlspecialchars($profile_image); ?>" alt="Profile">
         </div>
     </div>
 
@@ -263,23 +270,28 @@ button:hover {
             </div>
         <?php endif; ?>
 
-        <h3>👤 Update Your Profile</h3>
+        <div class="form-container">
+            <form method="POST" enctype="multipart/form-data">
+                <label for="profile_image">
+                    <img src="<?= htmlspecialchars($profile_image); ?>" id="preview" alt="Profile" class="preview">
+                </label>
+                <input type="file" name="profile_image" id="profile_image" accept="image/*" style="display:none" onchange="previewImage(event)">
 
-        <form method="POST" enctype="multipart/form-data">
-            <label for="profile_image">
-                <img src="../uploads/teachers/<?= htmlspecialchars($profile['profile_image'] ?: 'default.png'); ?>" 
-                     id="preview" alt="Profile Image" class="profile-pic">
-            </label>
-            <input type="file" name="profile_image" id="profile_image" accept="image/*" style="display:none" onchange="previewImage(event)">
-            <input type="text" name="full_name" value="<?= htmlspecialchars($profile['full_name']); ?>" required>
-            <input type="text" name="department" value="<?= htmlspecialchars($profile['department']); ?>" required>
-            <input type="text" name="phone" value="<?= htmlspecialchars($profile['phone']); ?>" required>
-            <textarea name="address" rows="3" required><?= htmlspecialchars($profile['address']); ?></textarea>
-            <div style="display:flex;justify-content:space-between;">
+                <label>Full Name</label>
+                <input type="text" name="full_name" value="<?= htmlspecialchars($profile['full_name']); ?>" required>
+
+                <label>Department</label>
+                <input type="text" name="department" value="<?= htmlspecialchars($profile['department']); ?>" required>
+
+                <label>Phone</label>
+                <input type="text" name="phone" value="<?= htmlspecialchars($profile['phone']); ?>" required>
+
+                <label>Address</label>
+                <textarea name="address" required><?= htmlspecialchars($profile['address']); ?></textarea>
+
                 <button type="submit">💾 Save Changes</button>
-                <button type="button" onclick="window.location.href='attendance.php'">↩️ Cancel</button>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
 </div>
 

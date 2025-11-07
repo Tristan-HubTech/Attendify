@@ -16,7 +16,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$stmt) {
         die("Database error: " . $conn->error);
     }
-
     $stmt->bind_param("s", $email);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -31,13 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Redirect based on role
         switch ($user['role']) {
             case 'admin':
-                header("Location: admin-dashboard/index.php");
+                header("Location: admin-dashboard/admin.php");
                 break;
             case 'teacher':
                 header("Location: teacher-dashboard/attendance.php");
                 break;
             default:
-                header("Location: student-dashboard/profile.php");
+                header("Location: students-dashboard/index.php");
                 break;
         }
         exit;
