@@ -31,6 +31,23 @@
         </div>   
     </div>
 </form>
+<script>
+document.querySelectorAll('button').forEach(btn => {
+  btn.addEventListener('click', e => {
+    const ripple = document.createElement('span');
+    ripple.classList.add('ripple');
+    btn.appendChild(ripple);
+
+    const x = e.clientX - e.target.offsetLeft;
+    const y = e.clientY - e.target.offsetTop;
+    ripple.style.left = `${x}px`;
+    ripple.style.top = `${y}px`;
+
+    setTimeout(() => ripple.remove(), 600);
+  });
+});
+</script>
+
 
 </body>
 </html>

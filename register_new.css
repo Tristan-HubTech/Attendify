@@ -1,44 +1,20 @@
+/* RESET */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+/* BODY */
 body {
-  font-family: Arial, sans-serif;
+  font-family: 'Segoe UI', Arial, sans-serif;
   color: white;
   height: 100vh;
   overflow: hidden;
   position: relative;
 }
 
-/* HEADER BAR */
-.Track {
-  width: 100%;
-  display: flex;
-  background: linear-gradient(90deg, #1d2b57, #233b76);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
-  height: 70px;
-}
-
-.Track h2 {
-  margin: auto;
-  font-size: 24px;
-  color: white;
-  text-align: center;
-  margin-right: auto;
-  margin-left: -60px;
-  text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
-}
-
-.aclc-logo {
-  height: 70px;
-  width: auto;
-  margin-right: auto;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
-}
-
-/* BACKGROUND */
+/* BLURRED BACKGROUND */
 body::before {
   content: "";
   position: fixed;
@@ -48,7 +24,7 @@ body::before {
   height: 100%;
   background: url("background.jpg") no-repeat center center fixed;
   background-size: cover;
-  filter: blur(6px) brightness(0.85);
+  filter: blur(6px) brightness(0.9);
   z-index: -2;
 }
 
@@ -63,17 +39,41 @@ body::after {
   z-index: -1;
 }
 
+/* HEADER */
+.Track {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  background: linear-gradient(90deg, #1d2b57, #233b76);
+  height: 70px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+
+.Track h2 {
+  margin: auto;
+  font-size: 24px;
+  color: #ffffff;
+  text-shadow: 1px 1px 4px rgba(0,0,0,0.4);
+  font-weight: 700;
+}
+
+.aclc-logo {
+  height: 70px;
+  width: auto;
+  margin-left: 0px;
+  filter: drop-shadow(0 2px 5px rgba(0,0,0,0.4));
+}
+
 /* LOGIN BOX */
 .login_box {
   background-color: #ffffff;
-  padding: 70px;
+  padding: 60px;
   border-radius: 12px;
-  width: 500px;
-  height: 500px;
-  margin: 150px auto;
+  width: 450px;
+  margin: 120px auto;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
   color: black;
-  transition: all 0.3s ease;
+
 }
 .login_box:hover {
   transform: translateY(-3px);
@@ -82,21 +82,24 @@ body::after {
 
 .login_box h2 {
   text-align: center;
-  margin-bottom: 60px;
+  margin-bottom: 25px;
   color: #0E027E;
-  text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+  font-size: 26px;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.15);
 }
 
+/* INPUTS */
 .input-group {
-  margin-bottom: 15px;
+  margin-bottom: 20px;
   display: flex;
   flex-direction: column;
 }
 
 .input-group label {
   font-weight: bold;
-  margin-bottom: 5px;
-  color: #1d1d1d;
+  margin-bottom: 6px;
+  color: #1b1b1b;
 }
 
 .input-group input {
@@ -104,8 +107,8 @@ body::after {
   border: 1px solid #ccc;
   border-radius: 6px;
   font-size: 14px;
-  transition: 0.3s;
-  box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
+  transition: all 0.3s ease;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .input-group input:focus {
@@ -124,7 +127,8 @@ button {
   border-radius: 6px;
   cursor: pointer;
   font-size: 16px;
-  transition: 0.3s;
+  font-weight: bold;
+  transition: all 0.3s ease;
   box-shadow: 0 4px 12px rgba(35, 59, 118, 0.5);
   position: relative;
   overflow: hidden;
@@ -133,26 +137,10 @@ button {
 button:hover {
   background: linear-gradient(90deg, #1c2a6d, #09016f);
   transform: scale(1.02);
-  box-shadow: 0 6px 15px rgba(0,0,0,0.4);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
 }
 
-p {
-  text-align: center;
-  font-size: 14px;
-  margin-top: 10px;
-}
-
-p a {
-  color: #0E027E;
-  text-decoration: none;
-  font-weight: bold;
-}
-
-p a:hover {
-  text-decoration: underline;
-}
-
-/* RIPPLE EFFECT FOR BUTTON */
+/* RIPPLE EFFECT */
 button .ripple {
   position: absolute;
   width: 100px;
@@ -171,7 +159,28 @@ button .ripple {
   }
 }
 
-/* FADE-IN ANIMATION */
+/* LINKS */
+p {
+  text-align: center;
+  font-size: 14px;
+  margin-top: 15px;
+  color: #1b1b1b;
+}
+
+p a {
+  color: #0E027E;
+  font-weight: bold;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+p a:hover {
+  color: #233b76;
+  text-shadow: 0 0 8px rgba(35, 59, 118, 0.5);
+  text-decoration: underline;
+}
+
+/* ANIMATION */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-15px); }
   to { opacity: 1; transform: translateY(0); }
