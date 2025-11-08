@@ -248,7 +248,6 @@ button:hover { background: #e21b23; }
     <h2>Teacher Panel</h2>
         <a href="attendance.php">📊 Attendance</a>
     <a href="manage_students.php">🎓 Manage Students</a>
-    <a href="manage_subjects.php">📘 Manage Subjects</a>
     <a href="teacher_profile.php">👤 Profile</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>

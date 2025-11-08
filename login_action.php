@@ -2,47 +2,49 @@
 require 'db_connect.php';
 session_start();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
-    $pw = $_POST['password'] ?? '';
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    $email = trim($_POST['email']);
+    $password = trim($_POST['password']);
 
-    if ($email === '' || $pw === '') {
-        header("Location: login.php?error=empty_fields");
-        exit;
-    }
-
-    $sql = "SELECT id, email, password_hash, role FROM users WHERE email = ?";
-    $stmt = $conn->prepare($sql);
+    // ✅ Fetch user from database
+    $stmt = $conn->prepare("SELECT id, password_hash, role FROM users WHERE email = ?");
     if (!$stmt) {
         die("Database error: " . $conn->error);
     }
     $stmt->bind_param("s", $email);
     $stmt->execute();
     $result = $stmt->get_result();
-    $user = $result->fetch_assoc();
 
-    if ($user && password_verify($pw, $user['password_hash'])) {
-        session_regenerate_id(true);
-        $_SESSION['user_id'] = $user['id'];
-        $_SESSION['email'] = $user['email'];
-        $_SESSION['role'] = $user['role'];
+    if ($result && $result->num_rows === 1) {
+        $user = $result->fetch_assoc();
 
-        // Redirect based on role
-        switch ($user['role']) {
-            case 'admin':
-                header("Location: admin-dashboard/admin.php");
-                break;
-            case 'teacher':
-                header("Location: teacher-dashboard/attendance.php");
-                break;
-            default:
-                header("Location: students-dashboard/index.php");
-                break;
+        // ✅ Verify password
+        if (password_verify($password, $user['password_hash'])) {
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['role'] = $user['role'];
+            $_SESSION['email'] = $email;
+
+            // ✅ Redirect based on role
+            switch ($user['role']) {
+                case 'admin':
+                    header("Location: admin-dashboard/admin.php");
+                    exit();
+                case 'teacher':
+                    header("Location: teacher-dashboard/attendance.php");
+                    exit();
+                case 'student':
+                    header("Location: students-dashboard/student_dashboard.php");
+                    exit();
+                default:
+                    header("Location: login.php");
+                    exit();
+            }
         }
-        exit;
-    } else {
-        header("Location: login.php?error=invalid_credentials");
-        exit;
     }
+
+    // ❌ Invalid credentials
+    $_SESSION['login_error'] = "❌ Invalid email or password.";
+    header("Location: login.php");
+    exit();
 }
 ?>

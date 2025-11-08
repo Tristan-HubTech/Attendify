@@ -3,28 +3,69 @@ require 'db_connect.php';
 session_start();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email']);
-    $otp = trim($_POST['otp']);
+    $otp = trim($_POST['otp'] ?? '');
 
-    $sql = "SELECT id, otp_code, otp_expires FROM users WHERE email=?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $user = $result->fetch_assoc();
-
-    if (!$user || $user['otp_code'] !== $otp || strtotime($user['otp_expires']) < time()) {
-        die("Invalid OTP or expired.");
+    // 🟡 Empty OTP check
+    if (empty($otp)) {
+        $_SESSION['otp_error'] = '⚠️ Please enter your OTP.';
+        header("Location: verify_otp.php");
+        exit();
     }
 
-    $update = "UPDATE users SET otp_verified=1 WHERE id=?";
-    $stmt2 = $conn->prepare($update);
-    $stmt2->bind_param("i", $user['id']);
-    $stmt2->execute();
+    // 🟣 Prepare query to find matching OTP
+    $stmt = $conn->prepare("SELECT email, reset_expires FROM users WHERE reset_otp = ?");
+    if (!$stmt) {
+        error_log('Database prepare failed: ' . $conn->error);
+        header("Location: unauthorized.php");
+        exit();
+    }
 
-    $_SESSION['password_reset_user'] = $user['id'];
-    $_SESSION['password_reset_allowed'] = time() + 900;
+    $stmt->bind_param("s", $otp);
+    $stmt->execute();
+    $result = $stmt->get_result();
 
-    header('Location: reset_password.php');
+    // 🟢 If OTP exists in database
+    if ($result && $result->num_rows > 0) {
+        $user = $result->fetch_assoc();
+        $expiry = strtotime($user['reset_expires']);
+
+        // ✅ Check if OTP is still valid
+        if ($expiry && $expiry > time()) {
+
+            // ✅ Save user session for password reset access
+            $_SESSION['password_reset_user'] = $user['email'];
+            $_SESSION['password_reset_allowed'] = time() + (15 * 60); // 15 minutes access
+
+            // 🧹 Clear OTP for security
+            $clear = $conn->prepare("UPDATE users SET reset_otp = NULL, reset_expires = NULL WHERE email = ?");
+            $clear->bind_param("s", $user['email']);
+            $clear->execute();
+            $clear->close();
+
+            // 🚀 Redirect to reset password page (no JS)
+            header("Location: reset_password.php");
+            exit();
+
+        } else {
+            // ⏰ OTP expired
+            $_SESSION['otp_error'] = '⏰ Your OTP has expired. Please request a new one.';
+            header("Location: verify_otp.php");
+            exit();
+        }
+
+    } else {
+        // ❌ Invalid OTP
+        $_SESSION['otp_error'] = '❌ Invalid OTP. Please try again.';
+        header("Location: verify_otp.php");
+        exit();
+    }
+
+    $stmt->close();
+    $conn->close();
+
+} else {
+    // 🚫 Direct access protection
+    header("Location: unauthorized.php");
+    exit();
 }
 ?>

@@ -163,7 +163,32 @@ button .ripple {
   animation: rippleEffect 0.6s linear;
   pointer-events: none;
 }
+ /* 🔵 Error Message Styling */
+        .error-message {
+            color: #d8000c;
+            background: #ffd2d2;
+            border: 1px solid #d8000c;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            text-align: center;
+            margin-top: 8px;
+            animation: fadeIn 0.5s ease-in-out;
+        }
 
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Optional: fade out automatically */
+        .fade-out {
+            animation: fadeOut 1s ease-in-out forwards;
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; height: 0; margin: 0; padding: 0; }
+        }
 @keyframes rippleEffect {
   to {
     transform: scale(4);

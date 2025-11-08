@@ -35,18 +35,23 @@ while ($row = $res->fetch_assoc()) {
     $summary[$row['status']] = $row['count'];
 }
 $q->close();
-
-// ✅ Recent Attendance Records
+/* ---------- Recent attendance records ---------- */
 $list = $conn->prepare("
-    SELECT a.date, COALESCE(s.subject_name, 'N/A') AS subject_name, a.status 
+    SELECT a.date, COALESCE(s.subject_name, 'N/A') AS subject_name, a.status
     FROM attendance a
-    LEFT JOIN subjects s ON a.subject_id = s.id
+    LEFT JOIN subjects s ON a.class_id = s.id
     WHERE a.student_id = ?
-    ORDER BY a.date DESC LIMIT 20
+    ORDER BY a.date DESC
+    LIMIT 20
 ");
+if (!$list) {
+    db_error_page('Database Error', 'Failed to prepare attendance list.', $conn->error);
+}
 $list->bind_param("i", $student_id);
 $list->execute();
 $records = $list->get_result();
+$list->close();
+
 
 // ✅ Profile Image
 $profile_pic = (!empty($student['profile_image']) && file_exists("../uploads/students/" . $student['profile_image']))
@@ -209,7 +214,7 @@ tr:hover { background: #eef3ff; }
     <div class="topbar">
         <h1>Attendance Overview</h1>
         <div class="profile">
-            <span>👋 <?= htmlspecialchars($student['student_name']); ?></span>
+           <span>👋 <?= htmlspecialchars($student['student_name'] ?: 'Student'); ?></span>
             <img src="<?= htmlspecialchars($profile_pic); ?>" alt="Profile">
         </div>
     </div>

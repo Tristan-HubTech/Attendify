@@ -1,12 +1,15 @@
-<?php
+<?php 
 require 'db_connect.php';
 session_start();
 
 $allowed = isset($_SESSION['password_reset_allowed']) && $_SESSION['password_reset_allowed'] >= time();
 if (!isset($_SESSION['password_reset_user']) || !$allowed) {
-    die('Not authorized or session expired.');
+    header("Location: unauthorized.php");
+    exit();
 }
 ?>
+
+
 <!DOCTYPE html>
 <html>
 <head>

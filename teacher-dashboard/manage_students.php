@@ -2,7 +2,7 @@
 session_start();
 require '../db_connect.php';
 
-// ✅ Restrict access to teachers
+// ✅ Restrict access to teachers only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
     header("Location: ../login.php");
     exit();
@@ -26,13 +26,13 @@ if ($stmt) {
 /* ---------- Add new subject ---------- */
 $message = "";
 if (isset($_POST['add_subject'])) {
-    $name = trim($_POST['subject_name']);
+    $subject_name = trim($_POST['subject_name']);
     $class_time = $_POST['class_time'] ?? '08:00:00';
 
-    if ($name !== '') {
-        $stmt = $conn->prepare("INSERT INTO subjects (name, class_time, teacher_id) VALUES (?, ?, ?)");
+    if ($subject_name !== '') {
+        $stmt = $conn->prepare("INSERT INTO subjects (subject_name, class_time, teacher_id) VALUES (?, ?, ?)");
         if ($stmt) {
-            $stmt->bind_param("ssi", $name, $class_time, $teacher_id);
+            $stmt->bind_param("ssi", $subject_name, $class_time, $teacher_id);
             $stmt->execute();
             $stmt->close();
             $message = "✅ Subject added successfully.";
@@ -48,20 +48,28 @@ if (isset($_POST['add_subject'])) {
 if (isset($_GET['delete'])) {
     $id = intval($_GET['delete']);
     $stmt = $conn->prepare("DELETE FROM subjects WHERE id = ? AND teacher_id = ?");
-    $stmt->bind_param("ii", $id, $teacher_id);
-    $stmt->execute();
-    $stmt->close();
-    $message = "🗑️ Subject deleted successfully.";
+    if ($stmt) {
+        $stmt->bind_param("ii", $id, $teacher_id);
+        $stmt->execute();
+        $stmt->close();
+        $message = "🗑️ Subject deleted successfully.";
+    } else {
+        $message = "❌ Failed to delete subject: " . $conn->error;
+    }
 }
 
 /* ---------- Fetch subjects ---------- */
 $subjects = [];
 $stmt = $conn->prepare("SELECT * FROM subjects WHERE teacher_id = ?");
-$stmt->bind_param("i", $teacher_id);
-$stmt->execute();
-$res = $stmt->get_result();
-while ($row = $res->fetch_assoc()) $subjects[] = $row;
-$stmt->close();
+if ($stmt) {
+    $stmt->bind_param("i", $teacher_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $subjects[] = $row;
+    }
+    $stmt->close();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -236,13 +244,11 @@ button:hover {
 <div class="sidebar">
     <img src="../ama.png" alt="ACLC Logo">
     <h2>Teacher Panel</h2>
-      <a href="attendance.php">📊 Attendance</a>
+    <a href="attendance.php">📊 Attendance</a>
     <a href="manage_students.php">🎓 Manage Students</a>
-    <a href="manage_subjects.php">📘 Manage Subjects</a>
     <a href="teacher_profile.php">👤 Profile</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
-
 
 <div class="main">
     <div class="topbar">
@@ -279,7 +285,7 @@ button:hover {
             <?php foreach ($subjects as $sub): ?>
             <tr>
                 <td><?= $sub['id']; ?></td>
-                <td><?= htmlspecialchars($sub['name']); ?></td>
+                <td><?= htmlspecialchars($sub['subject_name']); ?></td>
                 <td><?= htmlspecialchars($sub['class_time']); ?></td>
                 <td>
                     <a href="?delete=<?= $sub['id']; ?>" onclick="return confirm('Delete this subject?')">
