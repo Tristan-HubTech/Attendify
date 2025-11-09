@@ -1,42 +1,283 @@
 <?php
 session_start();
 require '../db_connect.php';
+include __DIR__ . '/admin_header.php';
+require_once __DIR__ . '/../log_activity.php';
+include __DIR__ . '/admin_default_profile.php';
+
+// admin only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../login.php"); exit();
+    header("Location: ../login.php");
+    exit();
 }
 
 $date = $_GET['date'] ?? date('Y-m-d');
-$class_id = intval($_GET['class_id'] ?? 0);
 
-// basic query: join attendance -> students -> subjects/classes
+// ✅ Build query
 $query = "
-SELECT a.date, s.student_name, sub.subject_name, a.status
+SELECT 
+    a.date,
+    u.email AS student_email,
+    s.subject_name,
+    a.status
 FROM attendance a
-JOIN students s ON a.student_id = s.id
-LEFT JOIN subjects sub ON a.class_id = sub.id
+LEFT JOIN users u ON a.student_id = u.id
+LEFT JOIN subjects s ON a.class_id = s.id
 WHERE a.date = ?
 ";
+
 $stmt = $conn->prepare($query);
+if (!$stmt) {
+    die("❌ SQL Prepare Failed: " . $conn->error);
+}
+
 $stmt->bind_param("s", $date);
 $stmt->execute();
 $res = $stmt->get_result();
 ?>
-<!doctype html>
-<html><head><meta charset="utf-8"><title>Attendance Report</title><link rel="stylesheet" href="style.css"></head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Attendance Report | Attendify Admin</title>
+<style>
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f4f6fa;
+    display: flex;
+    height: 100vh;
+}
+
+/* SIDEBAR */
+.sidebar {
+    width: 210px;
+    background: #17345f;
+    color: white;
+    height: 100vh;
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 15px;
+}
+.sidebar img {
+    width: 55%;
+    margin-bottom: 10px;
+}
+.sidebar h2 {
+    font-size: 16px;
+    margin-bottom: 20px;
+}
+.sidebar a {
+    display: block;
+    color: white;
+    text-decoration: none;
+    padding: 8px 15px;
+    width: 85%;
+    text-align: left;
+    border-radius: 5px;
+    margin: 3px 0;
+    font-size: 14px;
+    transition: 0.3s;
+}
+.sidebar a:hover, .sidebar a.active {
+    background: #e21b23;
+}
+.logout {
+    background: #e21b23;
+    color: white;
+    margin-top: auto;
+    margin-bottom: 20px;
+    text-align: center;
+    border-radius: 6px;
+    padding: 8px;
+    width: 80%;
+    font-size: 14px;
+}
+
+/* MAIN */
+.main {
+    margin-left: 210px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* TOPBAR */
+.topbar {
+    background: white;
+    padding: 12px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+.topbar h1 {
+    margin: 0;
+    color: #17345f;
+    font-size: 20px;
+}
+.profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.profile img {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #17345f;
+}
+
+/* CONTENT */
+.content {
+    padding: 30px 25px;
+    overflow-y: auto;
+}
+h2 {
+    color: #17345f;
+    font-size: 20px;
+    border-bottom: 3px solid #e21b23;
+    padding-bottom: 5px;
+    display: inline-block;
+    margin-bottom: 20px;
+}
+
+/* FILTER FORM */
+form.filter {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    margin-bottom: 25px;
+}
+form.filter label {
+    margin-right: 10px;
+    font-weight: 600;
+    color: #17345f;
+}
+form.filter input, form.filter select {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    margin-right: 10px;
+}
+form.filter button {
+    background: #17345f;
+    color: white;
+    padding: 8px 15px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+form.filter button:hover {
+    background: #1d4b83;
+}
+
+/* TABLE */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+thead {
+    background: #17345f;
+    color: white;
+}
+th, td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+}
+tr:nth-child(even) {
+    background: #f9f9f9;
+}
+.no-records {
+    text-align: center;
+    padding: 15px;
+    color: #6c757d;
+    font-style: italic;
+}
+</style>
+</head>
 <body>
-<?php include 'admin_nav.php'; ?>
-<div class="main"><div class="content">
-    <h3>Attendance Report for <?=htmlspecialchars($date)?></h3>
-    <table>
-        <tr><th>Date</th><th>Student</th><th>Subject/Class</th><th>Status</th></tr>
-        <?php while($r = $res->fetch_assoc()): ?>
-            <tr>
-                <td><?=htmlspecialchars($r['date'])?></td>
-                <td><?=htmlspecialchars($r['student_name'])?></td>
-                <td><?=htmlspecialchars($r['subject_name'] ?: '—')?></td>
-                <td><?=htmlspecialchars($r['status'])?></td>
-            </tr>
-        <?php endwhile; ?>
-    </table>
-</div></div>
-</body></html>
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <img src="../ama.png" alt="ACLC Logo">
+  <h2>Admin Panel</h2>
+
+  <a href="admin.php" class="<?= basename($_SERVER['PHP_SELF']) == 'admin.php' ? 'active' : '' ?>">🏠 Dashboard</a>
+  <a href="manage_users.php" class="<?= basename($_SERVER['PHP_SELF']) == 'manage_users.php' ? 'active' : '' ?>">👥 Manage Users</a>
+  <a href="manage_subjects.php" class="<?= basename($_SERVER['PHP_SELF']) == 'manage_subjects.php' ? 'active' : '' ?>">📘 Manage Subjects</a>
+  <a href="manage_classes.php" class="<?= basename($_SERVER['PHP_SELF']) == 'manage_classes.php' ? 'active' : '' ?>">🏫 Manage Classes</a>
+  <a href="attendance_report.php" class="<?= basename($_SERVER['PHP_SELF']) == 'attendance_report.php' ? 'active' : '' ?>">📊 Attendance Reports</a>
+  <a href="activity_log.php" class="<?= basename($_SERVER['PHP_SELF']) == 'activity_log.php' ? 'active' : '' ?>">🕒 Activity Log</a>
+  <a href="user_feedback.php" class="<?= basename($_SERVER['PHP_SELF']) == 'user_feedback.php' ? 'active' : '' ?>">💬 Feedback</a>
+
+  <a href="../logout.php" class="logout">🚪 Logout</a>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+    <div class="topbar">
+        <h1>Attendance Reports</h1>
+        <div class="profile">
+            <span>👋 <?= htmlspecialchars($admin_name); ?></span>
+            <img src="../uploads/admins/default.png" alt="Profile">
+        </div>
+    </div>
+
+    <div class="content">
+        <h2>📅 Attendance Report</h2>
+
+        <form class="filter" method="GET">
+            <label for="date">Date:</label>
+            <input type="date" id="date" name="date" value="<?= htmlspecialchars($date); ?>">
+
+            <label for="class_id">Subject:</label>
+            <select name="class_id" id="class_id">
+                <option value="0">All Subjects</option>
+                <?php while ($s = $subjects->fetch_assoc()): ?>
+                    <option value="<?= $s['id'] ?>" <?= $class_id == $s['id'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($s['subject_name']) ?>
+                    </option>
+                <?php endwhile; ?>
+            </select>
+
+            <button type="submit">Filter</button>
+        </form>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Student</th>
+                    <th>Subject</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($res->num_rows > 0): ?>
+                    <?php while ($r = $res->fetch_assoc()): ?>
+                        <tr>
+                            <td><?= htmlspecialchars($r['date']) ?></td>
+                            <td><?= htmlspecialchars($r['student_name'] ?: '—') ?></td>
+                            <td><?= htmlspecialchars($r['subject_name'] ?: '—') ?></td>
+                            <td><?= htmlspecialchars($r['status']) ?></td>
+                        </tr>
+                    <?php endwhile; ?>
+                <?php else: ?>
+                    <tr><td colspan="4" class="no-records">No attendance records found.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

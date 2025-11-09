@@ -9,13 +9,18 @@ $conn = new mysqli($servername, $username, $password, $database);
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
-// ✅ Automatically ensure default admin exists
-$adminEmail = 'admin@admin.com';
-$adminPass = password_hash('aclcadmin@', PASSWORD_DEFAULT);
-$conn->query("
-    INSERT INTO users (email, password_hash, role, created_at)
-    SELECT '$adminEmail', '$adminPass', 'admin', NOW()
-    WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = '$adminEmail')
-");
+
+
+function logActivity($conn, $user_id, $role, $action, $details = '') {
+    $stmt = $conn->prepare("INSERT INTO activity_log (user_id, role, action, details, created_at) VALUES (?, ?, ?, ?, NOW())");
+    if ($stmt) {
+        $stmt->bind_param("isss", $user_id, $role, $action, $details);
+        $stmt->execute();
+        $stmt->close();
+    } else {
+        error_log("Activity log insert failed: " . $conn->error);
+    }
+}
+
 
 ?>

@@ -1,20 +1,23 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 session_start();
 require '../db_connect.php';
 include __DIR__ . '/admin_header.php';
 require_once __DIR__ . '/../log_activity.php';
 include __DIR__ . '/admin_default_profile.php';
 
-// admin only
+// 🔒 Restrict access to admins only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login.php");
     exit();
 }
 
 $admin_id = $_SESSION['user_id'];
-$admin_name = "Admin User"; // fallback name
+$admin_name = "Admin User";
 
-// ✅ Fetch admin name from admin_profiles if it exists
+// ✅ Fetch admin name if profile exists
 $stmt = $conn->prepare("SELECT full_name FROM admin_profiles WHERE user_id = ?");
 if ($stmt) {
     $stmt->bind_param("i", $admin_id);
@@ -26,13 +29,43 @@ if ($stmt) {
     $stmt->close();
 }
 
+// ✅ Fetch the user to edit
+if (!isset($_GET['id'])) {
+    header("Location: manage_users.php");
+    exit;
+}
+
+$id = intval($_GET['id']);
+$stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->bind_param("i", $id);
+$stmt->execute();
+$result = $stmt->get_result();
+
+if ($result->num_rows == 0) {
+    header("Location: manage_users.php");
+    exit;
+}
+$user = $result->fetch_assoc();
+
+// ✅ Handle update submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $email = $_POST['email'];
+    $role = $_POST['role'];
+
+    $update = $conn->prepare("UPDATE users SET email = ?, role = ? WHERE id = ?");
+    $update->bind_param("ssi", $email, $role, $id);
+    $update->execute();
+
+    header("Location: manage_users.php");
+    exit;
+}
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Admin Dashboard | Attendify</title>
+<title>Edit User | Attendify Admin</title>
 <style>
 body {
     margin: 0;
@@ -57,12 +90,10 @@ body {
 .sidebar img {
     width: 55%;
     margin-bottom: 10px;
-    border-radius: 5px;
 }
 .sidebar h2 {
     font-size: 16px;
     margin-bottom: 20px;
-    text-align: center;
 }
 .sidebar a {
     display: block;
@@ -133,27 +164,59 @@ body {
 }
 h2 {
     color: #17345f;
+    font-size: 20px;
+    border-bottom: 3px solid #e21b23;
+    padding-bottom: 5px;
+    display: inline-block;
 }
-.card-container {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-}
-.card {
+
+/* FORM CARD */
+.form-card {
     background: white;
     border-radius: 8px;
+    padding: 25px;
+    max-width: 450px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    padding: 20px;
-    width: 200px;
-    text-align: center;
 }
-.card h3 {
+label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
     color: #17345f;
-    margin: 10px 0 5px;
+}
+input, select {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+}
+button {
+    background: #17345f;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+button:hover {
+    background: #1d4b83;
+}
+.back-btn {
+    background: #e21b23;
+    text-decoration: none;
+    padding: 10px 15px;
+    border-radius: 6px;
+    color: white;
+    margin-right: 10px;
+}
+.back-btn:hover {
+    background: #c0181f;
 }
 </style>
 </head>
 <body>
+
 <!-- SIDEBAR -->
 <div class="sidebar">
   <img src="../ama.png" alt="ACLC Logo">
@@ -170,9 +233,10 @@ h2 {
   <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
 
+<!-- MAIN -->
 <div class="main">
     <div class="topbar">
-        <h1>Welcome to Attendify</h1>
+        <h1>Edit User</h1>
         <div class="profile">
             <span>👋 <?= htmlspecialchars($admin_name); ?></span>
             <img src="../uploads/admins/default.png" alt="Profile">
@@ -180,36 +244,22 @@ h2 {
     </div>
 
     <div class="content">
-        <h2>📋 Dashboard Overview</h2>
-        <div class="card-container">
-            <div class="card">
-                <h3>👨‍🏫 Teachers</h3>
-                <?php
-                $count = $conn->query("SELECT COUNT(*) AS c FROM users WHERE role='teacher'")->fetch_assoc()['c'];
-                echo "<p>$count total</p>";
-                ?>
-            </div>
-            <div class="card">
-                <h3>🎓 Students</h3>
-                <?php
-                $count = $conn->query("SELECT COUNT(*) AS c FROM users WHERE role='student'")->fetch_assoc()['c'];
-                echo "<p>$count total</p>";
-                ?>
-            </div>
-            <div class="card">
-                <h3>📘 Subjects</h3>
-                <?php
-                $count = $conn->query("SELECT COUNT(*) AS c FROM subjects")->fetch_assoc()['c'];
-                echo "<p>$count total</p>";
-                ?>
-            </div>
-            <div class="card">
-                <h3>📅 Attendance</h3>
-                <?php
-                $count = $conn->query("SELECT COUNT(*) AS c FROM attendance")->fetch_assoc()['c'];
-                echo "<p>$count records</p>";
-                ?>
-            </div>
+        <h2>✏️ Update User Information</h2>
+        <div class="form-card">
+            <form method="POST">
+                <label>Email</label>
+                <input type="email" name="email" value="<?= htmlspecialchars($user['email']); ?>" required>
+
+                <label>Role</label>
+                <select name="role" required>
+                    <option value="admin" <?= $user['role'] == 'admin' ? 'selected' : '' ?>>Admin</option>
+                    <option value="teacher" <?= $user['role'] == 'teacher' ? 'selected' : '' ?>>Teacher</option>
+                    <option value="student" <?= $user['role'] == 'student' ? 'selected' : '' ?>>Student</option>
+                </select>
+
+                <a href="manage_users.php" class="back-btn">← Back</a>
+                <button type="submit">Update User</button>
+            </form>
         </div>
     </div>
 </div>

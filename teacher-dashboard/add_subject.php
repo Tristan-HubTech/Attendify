@@ -1,6 +1,14 @@
 <?php
 session_start();
 require '../db_connect.php';
+require '../log_activity.php';
+if ($stmt->execute()) {
+    // ✅ Log the activity
+    logActivity($conn, $_SESSION['user_id'], $_SESSION['role'], 'Profile Update', 'Student updated their profile information.');
+
+    $message = "✅ Profile updated successfully.";
+}
+
 
 // Make sure only teachers can add subjects
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {

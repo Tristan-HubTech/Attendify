@@ -1,6 +1,7 @@
 <?php
 session_start();
-require '../db_connect.php'; // ✅ correct relative path
+require '../db_connect.php'; 
+require '../log_activity.php'; // ✅ connects to activity log
 
 // ✅ Allow only students
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'student') {
@@ -25,7 +26,14 @@ if (!$student) {
 
 $student_id = $student['id'];
 
-// ✅ Attendance Summary
+/* ================================
+   ✅ Log student dashboard access
+================================ */
+log_activity($conn, $student_id, 'student', 'View Dashboard', 'Student accessed their dashboard');
+
+/* ================================
+   ✅ Attendance Summary
+================================ */
 $summary = ['Present' => 0, 'Absent' => 0, 'Late' => 0];
 $q = $conn->prepare("SELECT status, COUNT(*) AS count FROM attendance WHERE student_id = ? GROUP BY status");
 $q->bind_param("i", $student_id);
@@ -35,6 +43,7 @@ while ($row = $res->fetch_assoc()) {
     $summary[$row['status']] = $row['count'];
 }
 $q->close();
+
 /* ---------- Recent attendance records ---------- */
 $list = $conn->prepare("
     SELECT a.date, COALESCE(s.subject_name, 'N/A') AS subject_name, a.status
@@ -44,16 +53,15 @@ $list = $conn->prepare("
     ORDER BY a.date DESC
     LIMIT 20
 ");
-if (!$list) {
-    db_error_page('Database Error', 'Failed to prepare attendance list.', $conn->error);
-}
 $list->bind_param("i", $student_id);
 $list->execute();
 $records = $list->get_result();
 $list->close();
 
+/* ✅ Log viewing attendance */
+log_activity($conn, $student_id, 'student', 'View Attendance', 'Viewed recent attendance summary');
 
-// ✅ Profile Image
+/* ✅ Profile Image */
 $profile_pic = (!empty($student['profile_image']) && file_exists("../uploads/students/" . $student['profile_image']))
     ? "../uploads/students/" . $student['profile_image']
     : "../uploads/students/default.png";
@@ -205,7 +213,7 @@ tr:hover { background: #eef3ff; }
 <div class="sidebar">
     <img src="../ama.png" alt="ACLC Logo">
     <h2>Student Panel</h2>
-    <a href="student_dashboard.php">📊 Dashboard</a>
+    <a href="student_dashboard.php" class="active">📊 Dashboard</a>
     <a href="profile.php">👤 Profile</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
@@ -251,4 +259,3 @@ tr:hover { background: #eef3ff; }
 
 </body>
 </html>
-                

@@ -1,12 +1,13 @@
 <?php
 session_start();
 require '../db_connect.php';
-
+require '../log_activity.php';
 // ✅ Restrict to students
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
     header("Location: ../login.php");
     exit();
 }
+
 
 $student_id = $_SESSION['user_id'];
 $email = $_SESSION['email'];

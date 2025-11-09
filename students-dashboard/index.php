@@ -1,11 +1,17 @@
 <?php
 session_start();
 require '../db_connect.php';
-
+require '../log_activity.php';
 // ✅ Restrict access to students only
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'student') {
     header("Location: ../login.php");
     exit();
+}
+if ($stmt->execute()) {
+    // ✅ Log the activity
+    logActivity($conn, $_SESSION['user_id'], $_SESSION['role'], 'Profile Update', 'Student updated their profile information.');
+
+    $message = "✅ Profile updated successfully.";
 }
 
 $user_id = $_SESSION['user_id'];
