@@ -2,21 +2,25 @@
 session_start();
 require '../db_connect.php';
 require '../log_activity.php';
+
 // ✅ Restrict access to students only
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'student') {
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
     header("Location: ../login.php");
     exit();
 }
-if ($stmt->execute()) {
-    // ✅ Log the activity
-    logActivity($conn, $_SESSION['user_id'], $_SESSION['role'], 'Profile Update', 'Student updated their profile information.');
-
-    $message = "✅ Profile updated successfully.";
-}
 
 $user_id = $_SESSION['user_id'];
+$email = $_SESSION['email'];
+$message = "";
 
-// ✅ Fetch student info
+/* ================================
+   ✅ Log dashboard view
+================================ */
+log_activity($conn, $user_id, 'student', 'View Dashboard', 'Student opened the dashboard.');
+
+/* ================================
+   ✅ Fetch student info
+================================ */
 $stmt = $conn->prepare("SELECT id, student_name, course, section, profile_image FROM students WHERE user_id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -29,7 +33,9 @@ if (!$student) {
     exit();
 }
 
-// ✅ Handle profile picture upload
+/* ================================
+   ✅ Handle profile picture upload
+================================ */
 if (isset($_POST['upload_pic']) && isset($_FILES['profile_pic'])) {
     $file = $_FILES['profile_pic'];
     if ($file['error'] === 0) {
@@ -42,22 +48,33 @@ if (isset($_POST['upload_pic']) && isset($_FILES['profile_pic'])) {
             $path = $uploadDir . $newName;
 
             move_uploaded_file($file['tmp_name'], $path);
+
             $update = $conn->prepare("UPDATE students SET profile_image=? WHERE user_id=?");
             $update->bind_param("si", $newName, $user_id);
             $update->execute();
             $update->close();
+
+            // ✅ Log profile picture upload
+            log_activity($conn, $user_id, 'student', 'Upload Profile Picture', 'Student updated their profile picture.');
+
             header("Location: index.php");
             exit();
+        } else {
+            $message = "⚠️ Invalid file type. Only JPG, JPEG, or PNG allowed.";
         }
     }
 }
 
-// ✅ Default profile image
+/* ================================
+   ✅ Default profile image
+================================ */
 $profile_pic = (!empty($student['profile_image']) && file_exists("../uploads/students/" . $student['profile_image']))
     ? "../uploads/students/" . $student['profile_image']
     : "../uploads/students/default.png";
 
-// ✅ Attendance Summary
+/* ================================
+   ✅ Attendance Summary
+================================ */
 $summary = ['Present' => 0, 'Absent' => 0, 'Late' => 0];
 $q = $conn->prepare("SELECT status, COUNT(*) AS count FROM attendance WHERE student_id = ? GROUP BY status");
 $q->bind_param("i", $student['id']);
@@ -68,7 +85,12 @@ while ($row = $res->fetch_assoc()) {
 }
 $q->close();
 
-// ✅ Attendance Records
+// ✅ Log viewing of attendance summary
+log_activity($conn, $user_id, 'student', 'View Attendance Summary', 'Student viewed attendance summary.');
+
+/* ================================
+   ✅ Attendance Records
+================================ */
 $list = $conn->prepare("
     SELECT a.date, COALESCE(s.subject_name, 'N/A') AS subject_name, a.status
     FROM attendance a
@@ -80,6 +102,7 @@ $list = $conn->prepare("
 $list->bind_param("i", $student['id']);
 $list->execute();
 $records = $list->get_result();
+$list->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -201,9 +224,7 @@ h2 {
     border-radius: 10px;
     transition: 0.3s;
 }
-.card:hover {
-    background: #e21b23;
-}
+.card:hover { background: #e21b23; }
 
 /* TABLE */
 table {
@@ -231,14 +252,13 @@ tr:hover { background: #eef3ff; }
 <div class="sidebar">
     <img src="../ama.png" alt="ACLC Logo">
     <h2>Student Panel</h2>
-    <a href="index.php">📊 Dashboard</a>
+    <a href="index.php" class="active">📊 Dashboard</a>
     <a href="profile.php">👤 Profile</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
 
 <div class="main">
     <div class="topbar">
-      
         <h1>Student Dashboard</h1>
         <div class="profile">
             <span>👋 <?= htmlspecialchars($student['student_name']); ?></span>

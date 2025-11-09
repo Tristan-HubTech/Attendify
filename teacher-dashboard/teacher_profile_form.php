@@ -1,6 +1,7 @@
 <?php
 session_start();
 require '../db_connect.php';
+require '../log_activity.php'; // ✅ Connect activity log
 
 // ✅ Only teachers can access
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
@@ -11,8 +12,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
 $teacher_id = $_SESSION['user_id'];
 $message = "";
 
-// ✅ Check if profile already exists
+/* =======================================
+   ✅ Check if profile already exists
+======================================= */
 $check = $conn->prepare("SELECT id FROM teacher_profiles WHERE teacher_id = ?");
+if (!$check) die("Database error: " . $conn->error);
 $check->bind_param("i", $teacher_id);
 $check->execute();
 $check->store_result();
@@ -23,7 +27,9 @@ if ($check->num_rows > 0) {
 }
 $check->close();
 
-// ✅ Handle form submission
+/* =======================================
+   ✅ Handle form submission
+======================================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['full_name']);
     $department = trim($_POST['department']);
@@ -33,20 +39,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($name === '' || $department === '' || $phone === '' || $address === '') {
         $message = "⚠️ Please fill out all fields.";
     } else {
-        $stmt = $conn->prepare("INSERT INTO teacher_profiles (teacher_id, full_name, department, phone, address) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("issss", $teacher_id, $name, $department, $phone, $address);
-
-        if ($stmt->execute()) {
-            header("Location: teacher_profile.php");
-            exit();
+        $stmt = $conn->prepare("
+            INSERT INTO teacher_profiles (teacher_id, full_name, department, phone, address) 
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        if (!$stmt) {
+            $message = "❌ Database error: " . $conn->error;
         } else {
-            $message = "❌ Database error: " . $stmt->error;
+            $stmt->bind_param("issss", $teacher_id, $name, $department, $phone, $address);
+            if ($stmt->execute()) {
+                // ✅ Log teacher profile creation
+                log_activity($conn, $teacher_id, 'teacher', 'Profile Setup', "Teacher completed profile: $name ($department)");
+                
+                header("Location: teacher_profile.php");
+                exit();
+            } else {
+                $message = "❌ Failed to save profile: " . $stmt->error;
+            }
+            $stmt->close();
         }
-        $stmt->close();
     }
 }
-?>
 
+// ✅ Log page view
+log_activity($conn, $teacher_id, 'teacher', 'View Profile Setup Page', 'Accessed teacher profile setup page.');
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -212,6 +229,7 @@ button:hover {
     <a href="attendance.php">📊 Attendance</a>
     <a href="manage_subjects.php">📘 Manage Subjects</a>
     <a href="teacher_profile.php">👤 Profile</a>
+    <a href="feedback.php" class="active">💬 Feedback</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
 

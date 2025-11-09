@@ -3,17 +3,16 @@
   <img src="../ama.png" alt="ACLC Logo">
   <h2>Admin Panel</h2>
 
-  <a href="admin.php" class="<?= basename($_SERVER['PHP_SELF']) == 'admin.php' ? 'active' : '' ?>">🏠 Dashboard</a>
-  <a href="manage_users.php" class="<?= basename($_SERVER['PHP_SELF']) == 'manage_users.php' ? 'active' : '' ?>">👥 Manage Users</a>
-  <a href="manage_subjects.php" class="<?= basename($_SERVER['PHP_SELF']) == 'manage_subjects.php' ? 'active' : '' ?>">📘 Manage Subjects</a>
-  <a href="manage_classes.php" class="<?= basename($_SERVER['PHP_SELF']) == 'manage_classes.php' ? 'active' : '' ?>">🏫 Manage Classes</a>
-  <a href="attendance_report.php" class="<?= basename($_SERVER['PHP_SELF']) == 'attendance_report.php' ? 'active' : '' ?>">📊 Attendance Reports</a>
-  <a href="activity_log.php" class="<?= basename($_SERVER['PHP_SELF']) == 'activity_log.php' ? 'active' : '' ?>">🕒 Activity Log</a>
-  <a href="user_feedback.php" class="<?= basename($_SERVER['PHP_SELF']) == 'user_feedback.php' ? 'active' : '' ?>">💬 Feedback</a>
-
-  <a href="../logout.php" class="logout">🚪 Logout</a>
+  <a href="admin.php">🏠 Dashboard</a>
+  <a href="manage_users.php">👥 Manage Users</a>
+  <a href="manage_subjects.php">📘 Manage Subjects</a>
+  <a href="manage_classes.php">🏫 Manage Classes</a>
+  <a href="attendance_report.php">📊 Attendance Reports</a>
+  <a href="assign_students.php" >🎓 Assign Students</a>
+  <a href="activity_log.php">🕒 Activity Log</a>
+  <a href="user_feedback.php" >💬 Feedback</a>
+  <a href="../logout.php">🚪 Logout</a>
 </div>
-
 <style>
 :root {
   --primary-color: #17345f;

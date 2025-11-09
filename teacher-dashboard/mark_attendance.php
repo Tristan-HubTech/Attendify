@@ -1,8 +1,9 @@
 <?php
 session_start();
 require '../db_connect.php';
+require '../log_activity.php'; // ✅ include activity logger
 
-// ✅ Restrict access to teachers
+// ✅ Restrict access to teachers only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
     header("Location: ../login.php");
     exit();
@@ -16,8 +17,9 @@ if (!$subject_id) {
     exit();
 }
 
-// ✅ Fetch subject info
+// ✅ Fetch subject info (only if owned by this teacher)
 $stmt = $conn->prepare("SELECT subject_name, class_time FROM subjects WHERE id = ? AND teacher_id = ?");
+if (!$stmt) die("SQL Error: " . $conn->error);
 $stmt->bind_param("ii", $subject_id, $teacher_id);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -31,7 +33,12 @@ if (!$subject) {
 $subject_name = $subject['subject_name'];
 $class_time = $subject['class_time'];
 
-// ✅ Fetch students linked to that subject
+// ✅ Log that teacher opened this attendance page
+log_activity($conn, $teacher_id, 'teacher', 'View Attendance Page', "Opened attendance page for subject: $subject_name");
+
+/* ================================
+   ✅ Fetch students linked to the subject
+================================ */
 $students = [];
 $stmt = $conn->prepare("
     SELECT s.id, s.student_name
@@ -40,34 +47,54 @@ $stmt = $conn->prepare("
     JOIN subjects sub ON c.id = sub.id
     WHERE sub.id = ?
 ");
-$stmt->bind_param("i", $subject_id);
-$stmt->execute();
-$res = $stmt->get_result();
-while ($row = $res->fetch_assoc()) $students[] = $row;
-$stmt->close();
+if ($stmt) {
+    $stmt->bind_param("i", $subject_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $students[] = $row;
+    }
+    $stmt->close();
+} else {
+    die("SQL Error (fetch students): " . $conn->error);
+}
 
-// ✅ Save attendance
+/* ================================
+   ✅ Save attendance
+================================ */
 $message = "";
 if (isset($_POST['save_attendance'])) {
     $date = date('Y-m-d');
+    $count_saved = 0;
+
     foreach ($_POST['attendance'] as $student_id => $status) {
         // prevent duplicates
         $check = $conn->prepare("SELECT id FROM attendance WHERE student_id = ? AND class_id = ? AND date = ?");
+        if (!$check) continue;
         $check->bind_param("iis", $student_id, $subject_id, $date);
         $check->execute();
         $check->store_result();
 
         if ($check->num_rows == 0) {
             $insert = $conn->prepare("INSERT INTO attendance (student_id, class_id, date, status) VALUES (?, ?, ?, ?)");
-            $insert->bind_param("iiss", $student_id, $subject_id, $date, $status);
-            $insert->execute();
-            $insert->close();
+            if ($insert) {
+                $insert->bind_param("iiss", $student_id, $subject_id, $date, $status);
+                $insert->execute();
+                $insert->close();
+                $count_saved++;
+            }
         }
         $check->close();
     }
-    $message = "✅ Attendance for <b>$subject_name</b> has been saved successfully!";
-}
 
+    if ($count_saved > 0) {
+        $message = "✅ Attendance for <b>$subject_name</b> has been saved successfully!";
+        // ✅ Log to activity_log
+        log_activity($conn, $teacher_id, 'teacher', 'Save Attendance', "Marked attendance for $subject_name ($count_saved students)");
+    } else {
+        $message = "⚠️ No new attendance records were saved (already recorded).";
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">

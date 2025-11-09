@@ -2,12 +2,12 @@
 session_start();
 require '../db_connect.php';
 require '../log_activity.php';
+
 // ✅ Restrict to students
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
     header("Location: ../login.php");
     exit();
 }
-
 
 $student_id = $_SESSION['user_id'];
 $email = $_SESSION['email'];
@@ -38,10 +38,12 @@ $student = $result->fetch_assoc();
 $stmt->close();
 
 if (!$student) {
+    // Create record if missing
     $insert = $conn->prepare("INSERT INTO students (user_id, email) VALUES (?, ?)");
     $insert->bind_param("is", $student_id, $email);
     $insert->execute();
     $insert->close();
+
     $student = [
         'student_name' => '',
         'email' => $email,
@@ -53,6 +55,9 @@ if (!$student) {
     ];
 }
 
+// ✅ Log profile page view
+log_activity($conn, $student_id, 'student', 'View Profile', 'Student opened their profile page');
+
 /* ---------- Handle Update ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['student_name']);
@@ -62,27 +67,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $section = trim($_POST['section']);
     $image_name = $student['profile_image'];
 
+    // Handle profile picture upload
     if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === 0) {
         $upload_dir = "../uploads/students/";
         if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
         $allowed = ['jpg', 'jpeg', 'png'];
         $ext = strtolower(pathinfo($_FILES['profile_image']['name'], PATHINFO_EXTENSION));
+
         if (in_array($ext, $allowed)) {
             $image_name = 'student_' . $student_id . '_' . time() . '.' . $ext;
             move_uploaded_file($_FILES['profile_image']['tmp_name'], $upload_dir . $image_name);
+
+            // ✅ Log profile picture update
+            log_activity($conn, $student_id, 'student', 'Update Profile Picture', 'Updated their profile picture');
         } else {
             $message = "⚠️ Invalid image format. Use JPG, JPEG, or PNG.";
         }
     }
 
+    // Update profile details
     $stmt = $conn->prepare("
         UPDATE students 
         SET student_name=?, address=?, birthday=?, student_code=?, section=?, profile_image=? 
         WHERE user_id=?
     ");
     $stmt->bind_param("ssssssi", $name, $address, $birthday, $student_code, $section, $image_name, $student_id);
+
     if ($stmt->execute()) {
         $message = "✅ Profile updated successfully!";
+
+        // ✅ Log profile info update
+        log_activity($conn, $student_id, 'student', 'Update Profile', "Updated profile info for student: $name");
+
+        // Update local data
         $student = array_merge($student, [
             'student_name' => $name,
             'address' => $address,
@@ -254,7 +271,7 @@ button:hover { background: #e21b23; }
     <img src="../ama.png" alt="ACLC Logo">
     <h2>Student Panel</h2>
     <a href="student_dashboard.php">📊 Dashboard</a>
-    <a href="profile.php">👤 Profile</a>
+    <a href="profile.php" class="active">👤 Profile</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
 

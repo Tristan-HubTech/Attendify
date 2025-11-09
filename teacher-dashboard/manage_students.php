@@ -1,6 +1,7 @@
 <?php
 session_start();
 require '../db_connect.php';
+require '../log_activity.php'; // ✅ Include activity log system
 
 // ✅ Restrict access to teachers only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
@@ -9,9 +10,10 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
 }
 
 $teacher_id = $_SESSION['user_id'];
+$message = "";
 
 /* ---------- Fetch teacher name ---------- */
-$teacher_name = $_SESSION['email'];
+$teacher_name = $_SESSION['email']; // default fallback
 $stmt = $conn->prepare("SELECT full_name FROM teacher_profiles WHERE teacher_id = ?");
 if ($stmt) {
     $stmt->bind_param("i", $teacher_id);
@@ -23,8 +25,10 @@ if ($stmt) {
     $stmt->close();
 }
 
+// ✅ Log that teacher opened Manage Subjects page
+log_activity($conn, $teacher_id, 'teacher', 'View Manage Subjects', 'Teacher viewed the Manage Subjects page.');
+
 /* ---------- Add new subject ---------- */
-$message = "";
 if (isset($_POST['add_subject'])) {
     $subject_name = trim($_POST['subject_name']);
     $class_time = $_POST['class_time'] ?? '08:00:00';
@@ -33,9 +37,14 @@ if (isset($_POST['add_subject'])) {
         $stmt = $conn->prepare("INSERT INTO subjects (subject_name, class_time, teacher_id) VALUES (?, ?, ?)");
         if ($stmt) {
             $stmt->bind_param("ssi", $subject_name, $class_time, $teacher_id);
-            $stmt->execute();
+            if ($stmt->execute()) {
+                $message = "✅ Subject added successfully.";
+                // ✅ Log activity
+                log_activity($conn, $teacher_id, 'teacher', 'Add Subject', "Added new subject: $subject_name at $class_time");
+            } else {
+                $message = "❌ Failed to add subject: " . $stmt->error;
+            }
             $stmt->close();
-            $message = "✅ Subject added successfully.";
         } else {
             $message = "❌ Database prepare failed: " . $conn->error;
         }
@@ -47,14 +56,28 @@ if (isset($_POST['add_subject'])) {
 /* ---------- Delete subject ---------- */
 if (isset($_GET['delete'])) {
     $id = intval($_GET['delete']);
+    // Fetch subject name for logging before deletion
+    $fetch = $conn->prepare("SELECT subject_name FROM subjects WHERE id = ? AND teacher_id = ?");
+    $fetch->bind_param("ii", $id, $teacher_id);
+    $fetch->execute();
+    $res = $fetch->get_result();
+    $subject_row = $res->fetch_assoc();
+    $subject_name = $subject_row['subject_name'] ?? 'Unknown Subject';
+    $fetch->close();
+
     $stmt = $conn->prepare("DELETE FROM subjects WHERE id = ? AND teacher_id = ?");
     if ($stmt) {
         $stmt->bind_param("ii", $id, $teacher_id);
-        $stmt->execute();
+        if ($stmt->execute()) {
+            $message = "🗑️ Subject deleted successfully.";
+            // ✅ Log delete activity
+            log_activity($conn, $teacher_id, 'teacher', 'Delete Subject', "Deleted subject: $subject_name (ID: $id)");
+        } else {
+            $message = "❌ Failed to delete subject: " . $stmt->error;
+        }
         $stmt->close();
-        $message = "🗑️ Subject deleted successfully.";
     } else {
-        $message = "❌ Failed to delete subject: " . $conn->error;
+        $message = "❌ Failed to prepare delete statement: " . $conn->error;
     }
 }
 
@@ -247,6 +270,7 @@ button:hover {
     <a href="attendance.php">📊 Attendance</a>
     <a href="manage_students.php">🎓 Manage Students</a>
     <a href="teacher_profile.php">👤 Profile</a>
+    <a href="feedback.php" class="active">💬 Feedback</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
 

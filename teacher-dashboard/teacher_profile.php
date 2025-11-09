@@ -1,8 +1,9 @@
 <?php
 session_start();
 require '../db_connect.php';
+require '../log_activity.php'; // ✅ Connect activity logger
 
-// ✅ Restrict access to teachers
+// ✅ Restrict access to teachers only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
     header("Location: ../login.php");
     exit();
@@ -13,6 +14,7 @@ $message = "";
 
 /* ---------- Fetch teacher profile ---------- */
 $stmt = $conn->prepare("SELECT * FROM teacher_profiles WHERE teacher_id = ?");
+if (!$stmt) die("SQL Error: " . $conn->error);
 $stmt->bind_param("i", $teacher_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -23,6 +25,9 @@ if (!$profile) {
     header("Location: teacher_profile_setup.php");
     exit();
 }
+
+/* ---------- Log profile view ---------- */
+log_activity($conn, $teacher_id, 'teacher', 'View Profile', 'Teacher viewed their profile page.');
 
 /* ---------- Update profile ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -41,6 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (in_array($ext, $allowed)) {
             $image_name = 'teacher_' . $teacher_id . '_' . time() . '.' . $ext;
             move_uploaded_file($_FILES['profile_image']['tmp_name'], $upload_dir . $image_name);
+            // ✅ Log new profile picture
+            log_activity($conn, $teacher_id, 'teacher', 'Upload Profile Picture', "Updated profile picture ($image_name)");
         } else {
             $message = "⚠️ Only JPG, JPEG, PNG, or WEBP files are allowed.";
         }
@@ -50,10 +57,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt = $conn->prepare("UPDATE teacher_profiles 
         SET full_name=?, department=?, phone=?, address=?, profile_image=? 
         WHERE teacher_id=?");
+    if (!$stmt) die("SQL Error: " . $conn->error);
     $stmt->bind_param("sssssi", $name, $department, $phone, $address, $image_name, $teacher_id);
 
     if ($stmt->execute()) {
         $message = "✅ Profile updated successfully!";
+        // ✅ Log profile update
+        log_activity($conn, $teacher_id, 'teacher', 'Update Profile', "Updated profile information for: $name ($department)");
+
+        // Update local array
         $profile['full_name'] = $name;
         $profile['department'] = $department;
         $profile['phone'] = $phone;
@@ -246,9 +258,10 @@ button:hover { background: #e21b23; }
 <div class="sidebar">
     <img src="../ama.png" alt="ACLC Logo">
     <h2>Teacher Panel</h2>
-        <a href="attendance.php">📊 Attendance</a>
+    <a href="attendance.php">📊 Attendance</a>
     <a href="manage_students.php">🎓 Manage Students</a>
     <a href="teacher_profile.php">👤 Profile</a>
+    <a href="feedback.php" class="active">💬 Feedback</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
 

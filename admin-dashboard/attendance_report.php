@@ -4,7 +4,7 @@ require '../db_connect.php';
 include __DIR__ . '/admin_header.php';
 require_once __DIR__ . '/../log_activity.php';
 include __DIR__ . '/admin_default_profile.php';
-
+include __DIR__ . '/admin_nav.php';
 // admin only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login.php");
@@ -15,15 +15,11 @@ $date = $_GET['date'] ?? date('Y-m-d');
 
 // ✅ Build query
 $query = "
-SELECT 
-    a.date,
-    u.email AS student_email,
-    s.subject_name,
-    a.status
+SELECT a.*, s.subject_name, st.student_name
 FROM attendance a
-LEFT JOIN users u ON a.student_id = u.id
-LEFT JOIN subjects s ON a.class_id = s.id
-WHERE a.date = ?
+JOIN subjects s ON a.subject_id = s.id
+JOIN students st ON a.student_id = st.id
+ORDER BY a.date DESC
 ";
 
 $stmt = $conn->prepare($query);
@@ -31,6 +27,7 @@ if (!$stmt) {
     die("❌ SQL Prepare Failed: " . $conn->error);
 }
 
+$stmt = $conn->prepare("SELECT * FROM attendance WHERE date = ?");
 $stmt->bind_param("s", $date);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -207,22 +204,20 @@ tr:nth-child(even) {
 </style>
 </head>
 <body>
-<!-- SIDEBAR -->
 <div class="sidebar">
   <img src="../ama.png" alt="ACLC Logo">
   <h2>Admin Panel</h2>
 
-  <a href="admin.php" class="<?= basename($_SERVER['PHP_SELF']) == 'admin.php' ? 'active' : '' ?>">🏠 Dashboard</a>
-  <a href="manage_users.php" class="<?= basename($_SERVER['PHP_SELF']) == 'manage_users.php' ? 'active' : '' ?>">👥 Manage Users</a>
-  <a href="manage_subjects.php" class="<?= basename($_SERVER['PHP_SELF']) == 'manage_subjects.php' ? 'active' : '' ?>">📘 Manage Subjects</a>
-  <a href="manage_classes.php" class="<?= basename($_SERVER['PHP_SELF']) == 'manage_classes.php' ? 'active' : '' ?>">🏫 Manage Classes</a>
-  <a href="attendance_report.php" class="<?= basename($_SERVER['PHP_SELF']) == 'attendance_report.php' ? 'active' : '' ?>">📊 Attendance Reports</a>
-  <a href="activity_log.php" class="<?= basename($_SERVER['PHP_SELF']) == 'activity_log.php' ? 'active' : '' ?>">🕒 Activity Log</a>
-  <a href="user_feedback.php" class="<?= basename($_SERVER['PHP_SELF']) == 'user_feedback.php' ? 'active' : '' ?>">💬 Feedback</a>
-
-  <a href="../logout.php" class="logout">🚪 Logout</a>
+  <a href="admin.php">🏠 Dashboard</a>
+  <a href="manage_users.php">👥 Manage Users</a>
+  <a href="manage_subjects.php">📘 Manage Subjects</a>
+  <a href="manage_classes.php">🏫 Manage Classes</a>
+  <a href="attendance_report.php">📊 Attendance Reports</a>
+  <a href="assign_students.php" >🎓 Assign Students</a>
+  <a href="activity_log.php">🕒 Activity Log</a>
+  <a href="user_feedback.php" >💬 Feedback</a>
+  <a href="../logout.php">🚪 Logout</a>
 </div>
-
 <!-- MAIN -->
 <div class="main">
     <div class="topbar">
