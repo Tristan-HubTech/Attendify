@@ -21,9 +21,7 @@ $stmt = $conn->prepare("SELECT full_name FROM teacher_profiles WHERE teacher_id 
 $stmt->bind_param("i", $teacher_id);
 $stmt->execute();
 $res = $stmt->get_result();
-if ($row = $res->fetch_assoc()) {
-    $teacher_name = $row['full_name'];
-}
+if ($row = $res->fetch_assoc()) $teacher_name = $row['full_name'];
 $stmt->close();
 
 /* ✅ Fetch Profile Image */
@@ -32,10 +30,8 @@ $stmt = $conn->prepare("SELECT profile_image FROM teacher_profiles WHERE teacher
 $stmt->bind_param("i", $teacher_id);
 $stmt->execute();
 $res = $stmt->get_result();
-if ($row = $res->fetch_assoc()) {
-    if (!empty($row['profile_image']) && file_exists("../uploads/teachers/" . $row['profile_image'])) {
-        $profile_image = "../uploads/teachers/" . $row['profile_image'];
-    }
+if ($row = $res->fetch_assoc() && !empty($row['profile_image']) && file_exists("../uploads/teachers/" . $row['profile_image'])) {
+    $profile_image = "../uploads/teachers/" . $row['profile_image'];
 }
 $stmt->close();
 
@@ -55,37 +51,33 @@ $subject_query = $conn->prepare("SELECT id, subject_name, class_time FROM subjec
 $subject_query->bind_param("i", $teacher_id);
 $subject_query->execute();
 $res = $subject_query->get_result();
-while ($row = $res->fetch_assoc()) {
-    $subjects[] = $row;
-}
+while ($row = $res->fetch_assoc()) $subjects[] = $row;
 $subject_query->close();
 
 /* ================================
    ✅ Handle Attendance Submission + Twilio SMS
 ================================ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_attendance'])) {
-
-    // make sure composer autoload is present
     $composerAutoload = __DIR__ . '/../vendor/autoload.php';
-    if (!file_exists($composerAutoload)) {
-        // If composer autoload not found, set message and skip SMS sending
-        $message = "⚠️ Composer autoload missing. Install Twilio SDK with: composer require twilio/sdk";
-        // still proceed to save attendance without SMS
-    } else {
+    if (file_exists($composerAutoload)) {
         require $composerAutoload;
+        $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../');
+        $dotenv->load();
+    } else {
+        $message = "⚠️ Composer autoload missing. Install Twilio SDK with: composer require twilio/sdk";
     }
 
-    // 🔹 Twilio Credentials (replace with your real creds)
-    $account_sid = 'ACfd8978c26a712ac4a99'; // <-- replace
-    $auth_token  = 'd4833a6478450dcbc5145e2'; // <-- replace
-    $twilio_number = '+1XXXXXXXXXX'; // <-- replace with your Twilio number (E.164)
+    // ✅ Load Twilio credentials securely from .env
+    $account_sid   = $_ENV['TWILIO_SID'] ?? '';
+    $auth_token    = $_ENV['TWILIO_AUTH_TOKEN'] ?? '';
+    $twilio_number = $_ENV['TWILIO_NUMBER'] ?? '';
 
     $subject_id = intval($_POST['subject_id']);
     $attendance_date = date("Y-m-d");
     $statuses = $_POST['attendance'] ?? [];
 
     foreach ($statuses as $student_id => $status) {
-        // ✅ Save Attendance (student_id must be students.id)
+        // ✅ Save Attendance
         $stmt = $conn->prepare("
             INSERT INTO attendance (student_id, subject_id, date, status)
             VALUES (?, ?, ?, ?)
@@ -97,9 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_attendance'])) {
             $stmt->close();
         }
 
-        // ✅ Send SMS if Absent (only if autoload exists so Twilio class is available)
-        if ($status === 'Absent' && file_exists($composerAutoload)) {
-            // fetch student's phone and name
+        // ✅ Send SMS if Absent and Twilio setup exists
+        if ($status === 'Absent' && !empty($account_sid) && !empty($auth_token) && file_exists($composerAutoload)) {
             $getPhone = $conn->prepare("SELECT phone, student_name FROM students WHERE id = ?");
             $getPhone->bind_param("i", $student_id);
             $getPhone->execute();
@@ -108,20 +99,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_attendance'])) {
                 $to = $row['phone'];
                 $student_name = $row['student_name'];
 
-                // instantiate Twilio client with fully-qualified class name (no 'use' here)
                 try {
                     $client = new \Twilio\Rest\Client($account_sid, $auth_token);
-
-                    // construct message — tailor as needed
-                    $msg = "Attendify: {$student_name} marked ABSENT on {$attendance_date}. Please contact the school/teacher if this is incorrect.";
-
-                    // send SMS
+                    $msg = "Attendify: {$student_name} marked ABSENT on {$attendance_date}. Please contact the school if this is incorrect.";
                     $client->messages->create($to, [
                         'from' => $twilio_number,
                         'body' => $msg
                     ]);
                 } catch (Exception $e) {
-                    // log Twilio exceptions to server log for debugging
                     error_log("Twilio error sending to {$to}: " . $e->getMessage());
                 }
             }
@@ -129,7 +114,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_attendance'])) {
         }
     }
 
-    // if message already set due to missing autoload, keep it and append success
     if (strpos($message, 'Composer autoload') !== false) {
         $message .= " — Attendance saved (SMS skipped).";
     } else {
@@ -155,9 +139,7 @@ if ($selected_subject_id) {
     $stmt->bind_param("i", $selected_subject_id);
     $stmt->execute();
     $res = $stmt->get_result();
-    while ($row = $res->fetch_assoc()) {
-        $students[] = $row;
-    }
+    while ($row = $res->fetch_assoc()) $students[] = $row;
     $stmt->close();
 }
 ?>
