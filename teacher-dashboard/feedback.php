@@ -207,13 +207,13 @@ button:hover {
 <div class="sidebar">
     <img src="../ama.png" alt="ACLC Logo">
     <h2>Teacher Panel</h2>
-    <a href="attendance.php">📊 Attendance</a>
+    <a href="attendance.php" class="active">📊 Attendance</a>
     <a href="manage_students.php">🎓 Manage Students</a>
+    <a href="assign_students.php" >🎓 Assign Students</a>
     <a href="teacher_profile.php">👤 Profile</a>
-    <a href="feedback.php" class="active">💬 Feedback</a>
+    <a href="feedback.php">💬 Feedback</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
-
 <div class="main">
     <div class="topbar">
         <h1>💬 Feedback Form</h1>

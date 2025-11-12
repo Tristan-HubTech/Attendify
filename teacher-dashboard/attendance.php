@@ -30,8 +30,10 @@ $stmt = $conn->prepare("SELECT profile_image FROM teacher_profiles WHERE teacher
 $stmt->bind_param("i", $teacher_id);
 $stmt->execute();
 $res = $stmt->get_result();
-if ($row = $res->fetch_assoc() && !empty($row['profile_image']) && file_exists("../uploads/teachers/" . $row['profile_image'])) {
-    $profile_image = "../uploads/teachers/" . $row['profile_image'];
+if ($row = $res->fetch_assoc()) {
+    if (!empty($row['profile_image']) && file_exists("../uploads/teachers/" . $row['profile_image'])) {
+        $profile_image = "../uploads/teachers/" . $row['profile_image'];
+    }
 }
 $stmt->close();
 
@@ -55,22 +57,9 @@ while ($row = $res->fetch_assoc()) $subjects[] = $row;
 $subject_query->close();
 
 /* ================================
-   ✅ Handle Attendance Submission + Twilio SMS
+   ✅ Handle Attendance Submission + Sms8.io
 ================================ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_attendance'])) {
-    $composerAutoload = __DIR__ . '/../vendor/autoload.php';
-    if (file_exists($composerAutoload)) {
-        require $composerAutoload;
-        $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../');
-        $dotenv->load();
-    } else {
-        $message = "⚠️ Composer autoload missing. Install Twilio SDK with: composer require twilio/sdk";
-    }
-
-    // ✅ Load Twilio credentials securely from .env
-    $account_sid   = $_ENV['TWILIO_SID'] ?? '';
-    $auth_token    = $_ENV['TWILIO_AUTH_TOKEN'] ?? '';
-    $twilio_number = $_ENV['TWILIO_NUMBER'] ?? '';
 
     $subject_id = intval($_POST['subject_id']);
     $attendance_date = date("Y-m-d");
@@ -89,37 +78,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_attendance'])) {
             $stmt->close();
         }
 
-        // ✅ Send SMS if Absent and Twilio setup exists
-        if ($status === 'Absent' && !empty($account_sid) && !empty($auth_token) && file_exists($composerAutoload)) {
+        // ✅ Send SMS if Absent using Sms8.io
+        if ($status === 'Absent') {
             $getPhone = $conn->prepare("SELECT phone, student_name FROM students WHERE id = ?");
             $getPhone->bind_param("i", $student_id);
             $getPhone->execute();
             $result = $getPhone->get_result();
             if ($row = $result->fetch_assoc()) {
-                $to = $row['phone'];
+                $to = $row['phone']; // e.g. +639XXXXXXXXX
                 $student_name = $row['student_name'];
+                $date_today = date("Y-m-d");
 
-                try {
-                    $client = new \Twilio\Rest\Client($account_sid, $auth_token);
-                    $msg = "Attendify: {$student_name} marked ABSENT on {$attendance_date}. Please contact the school if this is incorrect.";
-                    $client->messages->create($to, [
-                        'from' => $twilio_number,
-                        'body' => $msg
-                    ]);
-                } catch (Exception $e) {
-                    error_log("Twilio error sending to {$to}: " . $e->getMessage());
+                // ✅ Sms8.io Configuration
+                $api_key = "ba176e34302a4e16687e4bb5d7c286d26dcfbe95";
+                $message = "Attendify Notice: $student_name was marked ABSENT on $date_today. Please contact the teacher if this is incorrect.";
+                $encoded_message = urlencode($message);
+
+                // ✅ Use the Front API
+                $url = "https://app.sms8.io/services/sendFront.php?key={$api_key}&number={$to}&message={$encoded_message}";
+
+                // Send API Request
+                $response = @file_get_contents($url);
+
+                // Log success or failure
+                if ($response === FALSE) {
+                    error_log("❌ Sms8.io failed to send message to $to");
+                } else {
+                    error_log("✅ Sms8.io sent message successfully to $to");
                 }
             }
             $getPhone->close();
         }
     }
 
-    if (strpos($message, 'Composer autoload') !== false) {
-        $message .= " — Attendance saved (SMS skipped).";
-    } else {
-        $message = "✅ Attendance marked successfully!";
-    }
-
+    $message = "✅ Attendance marked successfully and SMS sent for absentees!";
     log_activity($conn, $teacher_id, 'teacher', 'Mark Attendance', "Marked attendance for Subject ID: $subject_id on $attendance_date");
 }
 
@@ -187,6 +179,23 @@ th { background:#17345f; color:white; }
 tr:nth-child(even){ background:#f9f9f9; }
 button { background:#17345f; color:white; padding:8px 15px; border:none; border-radius:6px; cursor:pointer; }
 button:hover { background:#e21b23; }
+
+/* POPUP */
+.popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 20px 30px;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  text-align: center;
+  display: none;
+  z-index: 999;
+}
+.popup.success { border-left: 6px solid #2ecc71; }
+.popup.error { border-left: 6px solid #e74c3c; }
 </style>
 </head>
 <body>
@@ -196,6 +205,7 @@ button:hover { background:#e21b23; }
     <h2>Teacher Panel</h2>
     <a href="attendance.php" class="active">📊 Attendance</a>
     <a href="manage_students.php">🎓 Manage Students</a>
+    <a href="assign_students.php" >🎓 Assign Students</a>
     <a href="teacher_profile.php">👤 Profile</a>
     <a href="feedback.php">💬 Feedback</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
@@ -215,9 +225,16 @@ button:hover { background:#e21b23; }
 
     <div class="content">
         <?php if ($message): ?>
-            <div class="<?= str_contains($message,'⚠️')||str_contains($message,'❌')?'error':'message' ?>">
-                <?= $message; ?>
-            </div>
+            <script>
+                window.onload = function() {
+                    const popup = document.createElement('div');
+                    popup.className = 'popup success';
+                    popup.innerHTML = '<h3><?= addslashes($message); ?></h3>';
+                    document.body.appendChild(popup);
+                    popup.style.display = 'block';
+                    setTimeout(() => popup.style.display = 'none', 4000);
+                }
+            </script>
         <?php endif; ?>
 
         <form method="POST">

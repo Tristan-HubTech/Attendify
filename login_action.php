@@ -2,7 +2,6 @@
 session_start();
 require 'db_connect.php';
 require 'log_activity.php';
-logActivity($conn, $user['id'], $user['role'], 'Login', 'User logged in successfully');
 
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
@@ -24,37 +23,72 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if ($result && $result->num_rows === 1) {
         $user = $result->fetch_assoc();
 
-        // Verify password
+        // ✅ Verify password
         if (password_verify($password, $user['password_hash'])) {
 
-            // Store session
+            // ✅ Store basic session data
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['role'] = $user['role'];
             $_SESSION['email'] = $user['email'];
 
-            // Prevent endless reload
-            ob_clean();
-
-            // Redirect based on role
+            // ✅ Role-based session setup
             if ($user['role'] === 'admin') {
+                $_SESSION['admin_id'] = $user['id'];
+
+                log_activity($conn, $user['id'], 'admin', 'Login', 'Admin logged in successfully');
                 header("Location: admin-dashboard/admin.php");
                 exit();
+
             } elseif ($user['role'] === 'teacher') {
+
+                // 🔍 Fetch teacher_id from teacher_profiles (if linked)
+                $teacher_query = $conn->prepare("SELECT teacher_id FROM teacher_profiles WHERE teacher_id = ? OR full_name = (SELECT full_name FROM users WHERE id = ?)");
+                $teacher_query->bind_param("ii", $user['id'], $user['id']);
+                $teacher_query->execute();
+                $teacher_result = $teacher_query->get_result();
+                $teacher = $teacher_result->fetch_assoc();
+
+                if ($teacher) {
+                    $_SESSION['teacher_id'] = $teacher['teacher_id'];
+                } else {
+                    $_SESSION['teacher_id'] = $user['id']; // fallback
+                }
+
+                log_activity($conn, $user['id'], 'teacher', 'Login', 'Teacher logged in successfully');
                 header("Location: teacher-dashboard/attendance.php");
                 exit();
+
             } elseif ($user['role'] === 'student') {
+
+                // 🔍 Fetch student_id from students table
+                $student_query = $conn->prepare("SELECT id FROM students WHERE user_id = ?");
+                $student_query->bind_param("i", $user['id']);
+                $student_query->execute();
+                $student_result = $student_query->get_result();
+                $student = $student_result->fetch_assoc();
+
+                if ($student) {
+                    $_SESSION['student_id'] = $student['id'];
+                } else {
+                    $_SESSION['student_id'] = $user['id']; // fallback
+                }
+
+                log_activity($conn, $user['id'], 'student', 'Login', 'Student logged in successfully');
                 header("Location: students-dashboard/student_dashboard.php");
                 exit();
+
             } else {
                 $_SESSION['login_error'] = "Invalid user role.";
                 header("Location: login.php");
                 exit();
             }
+
         } else {
             $_SESSION['login_error'] = "Incorrect password.";
             header("Location: login.php");
             exit();
         }
+
     } else {
         $_SESSION['login_error'] = "Account not found.";
         header("Location: login.php");
