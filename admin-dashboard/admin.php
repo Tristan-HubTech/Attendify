@@ -1,7 +1,7 @@
 <?php
 session_start();
 require '../db_connect.php';
-include __DIR__ . '/admin_header.php';
+
 require_once __DIR__ . '/../log_activity.php';
 include __DIR__ . '/admin_default_profile.php';
 include __DIR__ . '/admin_nav.php';
