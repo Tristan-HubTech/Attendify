@@ -1,3 +1,9 @@
+<?php
+session_start();
+$success = $_SESSION['otp_success'] ?? '';
+$error = $_SESSION['otp_error'] ?? '';
+unset($_SESSION['otp_success'], $_SESSION['otp_error']);
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -130,23 +136,36 @@
       transform: scale(1.02);
     }
 
-    .error-message {
+    /* ✅ Notification Styles */
+    .message-box {
+      width: 90%;
+      max-width: 420px;
+      margin: 20px auto;
+      padding: 10px 15px;
+      border-radius: 6px;
+      font-size: 14px;
       text-align: center;
-      background: #e21b23;
-      color: white;
-      padding: 10px;
-      border-radius: 5px;
-      margin-bottom: 20px;
-      display: none;
       font-weight: bold;
       box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+      animation: fadeIn 0.6s ease;
+    }
+
+    .error-box {
+      background: #ffebee;
+      color: #a40000;
+      border: 1px solid #ff6b6b;
+    }
+
+    .success-box {
+      background: #e8f9ee;
+      color: #056d33;
+      border: 1px solid #3dc97d;
     }
 
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(-10px); }
       to { opacity: 1; transform: translateY(0); }
     }
-
   </style>
 </head>
 <body>
@@ -155,9 +174,17 @@
     <h2>Welcome to Attendify</h2>
   </div>
 
+  <!-- ✅ Success / Error Messages -->
+  <?php if ($success): ?>
+    <div class="message-box success-box"><?= htmlspecialchars($success) ?></div>
+  <?php endif; ?>
+
+  <?php if ($error): ?>
+    <div class="message-box error-box"><?= htmlspecialchars($error) ?></div>
+  <?php endif; ?>
+
   <form method="post" class="login_box" action="verify_otp_action.php">
     <h2>Enter Your OTP</h2>
-    <div id="error" class="error-message"></div>
 
     <div class="input-group">
       <label>OTP Code:</label>
@@ -167,13 +194,9 @@
   </form>
 
   <script>
-    // Optional: Auto-hide error message
-    const errorBox = document.getElementById("error");
-    const params = new URLSearchParams(window.location.search);
-    if (params.has("error")) {
-      errorBox.textContent = params.get("error");
-      errorBox.style.display = "block";
-      setTimeout(() => errorBox.style.display = "none", 5000);
+    const msgBox = document.querySelector(".message-box");
+    if (msgBox) {
+      setTimeout(() => msgBox.style.display = "none", 4000);
     }
   </script>
 </body>

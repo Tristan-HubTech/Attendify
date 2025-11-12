@@ -6,12 +6,14 @@ require 'db_connect.php';
 require 'PHPMailer/src/Exception.php';
 require 'PHPMailer/src/PHPMailer.php';
 require 'PHPMailer/src/SMTP.php';
+session_start();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email']);
 
     if (empty($email)) {
-        echo "<script>alert('⚠️ Please enter your email.'); window.history.back();</script>";
+        $_SESSION['otp_error'] = "⚠️ Please enter your email.";
+        header("Location: request_reset.php");
         exit();
     }
 
@@ -22,13 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->store_result();
 
     if ($stmt->num_rows === 0) {
-        echo "<script>alert('❌ No account found with that email.'); window.history.back();</script>";
+        $_SESSION['otp_error'] = "❌ No account found with that email.";
+        header("Location: request_reset.php");
         exit();
     }
 
     // Generate OTP
     $otp = rand(100000, 999999);
-    $expires = date("Y-m-d H:i:s", strtotime("+15 minutes")); // 15-minute expiry
+    $expires = date("Y-m-d H:i:s", strtotime("+15 minutes"));
 
     // Save OTP and expiry to DB
     $stmt = $conn->prepare("UPDATE users SET reset_otp = ?, reset_expires = ? WHERE email = ?");
@@ -42,21 +45,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mail->isSMTP();
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
-        $mail->Username = 'tyasuham@gmail.com'; // 🔹 Replace with your Gmail
-        $mail->Password = 'ymxqoywibfhvmupf
-'; // 🔹 App password from Google
+        $mail->Username = 'aclcmandaue8@gmail.com'; // ✅ your Gmail
+        $mail->Password = 'iljtxvsppyhvgqfa'; // ✅ app password
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
 
-        $mail->setFrom('yourgmail@gmail.com', 'System Attendance');
+        $mail->setFrom('aclcmandaue8@gmail.com', 'System Attendance');
         $mail->addAddress($email);
         $mail->isHTML(true);
 
-        // SUBJECT
         $mail->Subject = 'Your Verification Code';
 
-        // BODY TEMPLATE (clean, professional)
-    $mail->Body = "
+        // Email Body
+       $mail->Body = "
 <div style='font-family: Arial, sans-serif; color: #333; padding: 25px; background: #f4f6fa; border-radius: 10px; border: 1px solid #ddd;'>
     <div style='background-color: #233b76; color: white; padding: 15px 20px; border-radius: 8px 8px 0 0;'>
         <h2 style='margin: 0; font-size: 20px;'>System Attendance Verification</h2>
@@ -88,15 +89,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 ";
-
-        // Plain text fallback
-        $mail->AltBody = "Hello,\n\nYour one-time password (OTP) is $otp.\nThis code will expire in 15 minutes.\n\nPlease use it to complete your login securely.\n\n— System Attendance Team";
+        $mail->AltBody = "Your OTP code is $otp. It will expire in 15 minutes.";
 
         $mail->send();
-        echo "<script>alert('✅ OTP sent successfully! Check your email.'); window.location.href='verify_otp.php';</script>";
+
+        // ✅ Set success message for next page
+        $_SESSION['otp_success'] = "✅ OTP sent successfully! Check your email.";
+        header("Location: verify_otp.php");
+        exit();
 
     } catch (Exception $e) {
-        echo "<script>alert('❌ Email could not be sent. Error: {$mail->ErrorInfo}'); window.history.back();</script>";
+        $_SESSION['otp_error'] = "❌ Email could not be sent. Error: {$mail->ErrorInfo}";
+        header("Location: request_reset.php");
+        exit();
     }
 }
 ?>

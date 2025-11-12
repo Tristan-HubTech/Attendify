@@ -1,40 +1,39 @@
 <?php
-// config.php
-session_start();
-
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-require 'phpmailer/src/Exception.php';
-require 'phpmailer/src/PHPMailer.php';
-require 'phpmailer/src/SMTP.php';
+require 'PHPMailer/src/Exception.php';
+require 'PHPMailer/src/PHPMailer.php';
+require 'PHPMailer/src/SMTP.php';
 
-define('SMTP_EMAIL', 'tyasuham@gmail.com');
-define('SMTP_APP_PASSWORD', 'xxxxxxxx'); // your app password
-
-function sendEmailOTP($toEmail, $subject, $body) {
+function sendEmail($to, $subject, $body, $altBody = '') {
     $mail = new PHPMailer(true);
     try {
+        // ✅ Server settings
         $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = SMTP_EMAIL;
-        $mail->Password   = SMTP_APP_PASSWORD;
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
+        $mail->Host = 'smtp.gmail.com';
+        $mail->SMTPAuth = true;
 
-        $mail->setFrom(SMTP_EMAIL, 'System Attendance');
-        $mail->addAddress($toEmail);
+        // ⚠️ Use your Gmail + App Password here
+        $mail->Username = 'aclcmandaue8@gmail.com';
+        $mail->Password = 'iljtxvsppyhvgqfa'; // App password (no spaces)
 
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // SSL
+        $mail->Port = 465;
+
+        // ✅ Email setup
+        $mail->setFrom('yourgmail@gmail.com', 'Attendify System');
+        $mail->addAddress($to);
         $mail->isHTML(true);
         $mail->Subject = $subject;
-        $mail->Body    = $body;
-        $mail->AltBody = strip_tags($body);
+        $mail->Body = $body;
+        $mail->AltBody = $altBody ?: strip_tags($body);
 
         $mail->send();
         return true;
+
     } catch (Exception $e) {
-        return false;
+        return "Email could not be sent. Error: {$mail->ErrorInfo}";
     }
 }
 ?>
