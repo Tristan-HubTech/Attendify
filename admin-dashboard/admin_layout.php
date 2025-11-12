@@ -109,7 +109,7 @@ body { margin:0; font-family:'Segoe UI', Arial, sans-serif; background:#f4f6fa; 
   <a href="assign_students.php" >🎓 Assign Students</a>
   <a href="activity_log.php">🕒 Activity Log</a>
   <a href="user_feedback.php" >💬 Feedback</a>
-  <a href="../logout.php">🚪 Logout</a>
+  <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
 <div class="main">
   <div class="topbar">

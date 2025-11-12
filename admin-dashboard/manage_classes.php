@@ -216,6 +216,7 @@ body {
 .profile img { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--primary-color); object-fit: cover; }
 .section {
     background: var(--white);
+    
     border-radius: 10px;
     padding: 20px;
     margin: 20px;
@@ -292,13 +293,6 @@ tr:hover { background: #f1f3f9; }
     <div class="message"><?= htmlspecialchars($message) ?></div>
   <?php endif; ?>
 
-  <div class="section">
-    <h3>➕ Add New Class</h3>
-    <form method="POST">
-      <input type="text" name="class_name" placeholder="Class Name" required>
-      <button type="submit" name="create_class">Add Class</button>
-    </form>
-  </div>
 
   <div class="section">
     <h3>👥 Assign Student to Class</h3>
