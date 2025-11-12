@@ -1,35 +1,44 @@
 <?php
-// admin_header.php - logic only, no HTML output
-if (defined('ADMIN_HEADER_INCLUDED')) {
-    return;
-}
-define('ADMIN_HEADER_INCLUDED', true);
+session_start();
+require '../db_connect.php';
 
-// start session if needed
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-// load DB
-require_once __DIR__ . '/../db_connect.php';
-
-// ensure only admins can see admin pages
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login.php");
     exit();
 }
 
-// fetch admin name safely (fallback to 'Admin User')
-$admin_name = "Admin User";
-$admin_id = intval($_SESSION['user_id'] ?? 0);
+$admin_id = $_SESSION['user_id'];
+$admin_name = "Administrator";
+$admin_image = "default.png"; // fallback if no image is found
 
-$stmt = $conn->prepare("SELECT full_name FROM admin_profiles WHERE user_id = ?");
-if ($stmt) {
-    $stmt->bind_param("i", $admin_id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    if ($row = $res->fetch_assoc()) {
-        if (!empty($row['full_name'])) $admin_name = $row['full_name'];
-    }
-    $stmt->close();
+// ✅ Query from the existing users table
+$stmt = $conn->prepare("SELECT email, role FROM users WHERE id = ?");
+$stmt->bind_param("i", $admin_id);
+$stmt->execute();
+$result = $stmt->get_result();
+
+if ($result && $row = $result->fetch_assoc()) {
+    $admin_name = $row['email']; // or full_name if you add that column later
 }
+
+$stmt->close();
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Admin Dashboard | Attendify</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="admin-header">
+  <div class="header-left">
+    <h2>Welcome, <?= htmlspecialchars($admin_name) ?></h2>
+  </div>
+  <div class="header-right">
+    <img src="../uploads/<?= htmlspecialchars($admin_image) ?>" alt="Admin" class="admin-avatar">
+    <a href="../logout.php" class="logout-btn">Logout</a>
+  </div>
+</header>
+</body>
+</html>

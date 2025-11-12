@@ -209,7 +209,7 @@ button:hover {
     <h2>Teacher Panel</h2>
     <a href="attendance.php">📊 Attendance</a>
     <a href="manage_students.php">👥 Manage Students</a>
-    <a href="assign_students.php" class="active">🎓 Assign Students</a>
+    <a href="assign_students.php" >🎓 Assign Students</a>
     <a href="teacher_profile.php">👤 Profile</a>
     <a href="feedback.php">💬 Feedback</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
