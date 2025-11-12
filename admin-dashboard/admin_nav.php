@@ -8,11 +8,12 @@
   <a href="manage_subjects.php">📘 Manage Subjects</a>
   <a href="manage_classes.php">🏫 Manage Classes</a>
   <a href="attendance_report.php">📊 Attendance Reports</a>
-  <a href="assign_students.php" >🎓 Assign Students</a>
+  <a href="assign_students.php">🎓 Assign Students</a>
   <a href="activity_log.php">🕒 Activity Log</a>
-  <a href="user_feedback.php" >💬 Feedback</a>
+  <a href="user_feedback.php">💬 Feedback</a>
   <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
+
 <style>
 :root {
   --primary-color: #17345f;
@@ -20,6 +21,7 @@
   --white: #ffffff;
 }
 
+/* SIDEBAR */
 .sidebar {
     width: 210px;
     background: #17345f;
@@ -40,7 +42,7 @@
 .sidebar a.active {
     background: var(--accent-color);
     font-weight: 600;
-    border-radius: 4px; /* fixed */
+    border-radius: 4px;
     transform: none;
 }
 
@@ -88,7 +90,7 @@
 
 /* MAIN LAYOUT */
 .main {
-    margin-left: 210px; /* Matches sidebar width */
+    margin-left: 210px;
     flex-grow: 1;
     display: flex;
     flex-direction: column;
@@ -110,18 +112,6 @@
     margin: 0;
     color: var(--primary-color);
     font-size: 20px;
-}
-.profile {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.profile img {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid var(--primary-color);
 }
 
 /* CONTENT */

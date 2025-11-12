@@ -3,281 +3,292 @@ session_start();
 require '../db_connect.php';
 require '../log_activity.php';
 
+// Helper: safe prepare with error handling
+function safe_prepare($conn, $sql) {
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        // Log a clear message to a file and return false
+        $err = date("Y-m-d H:i:s") . " | SQL Prepare Error: " . $conn->error . " | Query: " . $sql . PHP_EOL;
+        @file_put_contents(__DIR__ . "/../logs/sql_errors.log", $err, FILE_APPEND);
+        return false;
+    }
+    return $stmt;
+}
+
 // ✅ Restrict access to teachers only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
     header("Location: ../login.php");
     exit();
 }
 
-$teacher_id = $_SESSION['user_id'];
-$teacher_name = "Teacher User";
-$selected_subject_id = null;
+$teacher_id = intval($_SESSION['user_id']);
 $message = "";
+$selected_subject_id = $_POST['subject_id'] ?? ($_GET['subject_id'] ?? null);
 
-/* ================================
-   ✅ Fetch Teacher Info
-================================ */
-$stmt = $conn->prepare("SELECT full_name FROM teacher_profiles WHERE teacher_id = ?");
-$stmt->bind_param("i", $teacher_id);
-$stmt->execute();
-$res = $stmt->get_result();
-if ($row = $res->fetch_assoc()) $teacher_name = $row['full_name'];
-$stmt->close();
-
-/* ✅ Fetch Profile Image */
+// =========================
+// Fetch teacher info safely
+// =========================
+$teacher_name = 'Teacher';
 $profile_image = "../uploads/teachers/default.png";
-$stmt = $conn->prepare("SELECT profile_image FROM teacher_profiles WHERE teacher_id = ?");
-$stmt->bind_param("i", $teacher_id);
-$stmt->execute();
-$res = $stmt->get_result();
-if ($row = $res->fetch_assoc()) {
-    if (!empty($row['profile_image']) && file_exists("../uploads/teachers/" . $row['profile_image'])) {
-        $profile_image = "../uploads/teachers/" . $row['profile_image'];
+$sql = "SELECT full_name, profile_image FROM teacher_profiles WHERE teacher_id = ?";
+$stmt = safe_prepare($conn, $sql);
+if ($stmt !== false) {
+    $stmt->bind_param("i", $teacher_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($row = $res->fetch_assoc()) {
+        if (!empty($row['full_name'])) $teacher_name = $row['full_name'];
+        if (!empty($row['profile_image']) && file_exists("../uploads/teachers/" . $row['profile_image'])) {
+            $profile_image = "../uploads/teachers/" . $row['profile_image'];
+        }
+    }
+    $stmt->close();
+} else {
+    // If prepare failed, continue with safe defaults and show a soft message
+    $message = "⚠️ Warning: Could not load teacher profile (check logs).";
+}
+
+// =========================
+// Fetch subjects safely
+// =========================
+$subjects = [];
+$sql = "SELECT id, subject_name, class_time FROM subjects WHERE teacher_id = ?";
+$stmt = safe_prepare($conn, $sql);
+if ($stmt !== false) {
+    $stmt->bind_param("i", $teacher_id);
+    $stmt->execute();
+    $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+} else {
+    $message = $message ? $message . " Also failed to load subjects." : "⚠️ Warning: Could not load subjects (check logs).";
+}
+
+// =========================
+// Handle remove student (enrollment) safely
+// =========================
+if (isset($_GET['remove']) && isset($_GET['subject'])) {
+    $student_id = intval($_GET['remove']);
+    $subject_id = intval($_GET['subject']);
+    $sql = "DELETE FROM enrollments WHERE student_id = ? AND subject_id = ?";
+    $stmt = safe_prepare($conn, $sql);
+    if ($stmt !== false) {
+        $stmt->bind_param("ii", $student_id, $subject_id);
+        $stmt->execute();
+        $stmt->close();
+        header("Location: attendance.php?subject_id=" . $subject_id . "&msg=removed");
+        exit();
+    } else {
+        $message = "❌ Failed to remove student (see logs).";
     }
 }
-$stmt->close();
 
-/* ✅ Log Page Visit */
-log_activity($conn, $teacher_id, 'teacher', 'View Attendance Page', 'Teacher accessed attendance page.');
-
-/* ✅ Handle Subject Selection */
-if (isset($_POST['subject_id'])) {
-    $selected_subject_id = intval($_POST['subject_id']);
-}
-
-/* ================================
-   ✅ Fetch Subjects Assigned to Teacher
-================================ */
-$subjects = [];
-$subject_query = $conn->prepare("SELECT id, subject_name, class_time FROM subjects WHERE teacher_id = ?");
-$subject_query->bind_param("i", $teacher_id);
-$subject_query->execute();
-$res = $subject_query->get_result();
-while ($row = $res->fetch_assoc()) $subjects[] = $row;
-$subject_query->close();
-
-/* ================================
-   ✅ Handle Attendance Submission + Sms8.io
-================================ */
+// =========================
+// Handle attendance save
+// =========================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_attendance'])) {
-
     $subject_id = intval($_POST['subject_id']);
-    $attendance_date = date("Y-m-d");
+    $date = date("Y-m-d");
     $statuses = $_POST['attendance'] ?? [];
+    $count = 0;
+    $sms_sent = 0;
 
-    foreach ($statuses as $student_id => $status) {
-        // ✅ Save Attendance
-        $stmt = $conn->prepare("
-            INSERT INTO attendance (student_id, subject_id, date, status)
-            VALUES (?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE status = VALUES(status)
-        ");
-        if ($stmt) {
-            $stmt->bind_param("iiss", $student_id, $subject_id, $attendance_date, $status);
-            $stmt->execute();
-            $stmt->close();
-        }
+    if (empty($statuses)) {
+        $message = "⚠️ No attendance selections were made.";
+    } else {
+        foreach ($statuses as $student_id => $status) {
+            $student_id = intval($student_id);
+            $status = substr(trim($status), 0, 50); // sanitize
 
-        // ✅ Send SMS if Absent using Sms8.io
-        if ($status === 'Absent') {
-            $getPhone = $conn->prepare("SELECT phone, student_name FROM students WHERE id = ?");
-            $getPhone->bind_param("i", $student_id);
-            $getPhone->execute();
-            $result = $getPhone->get_result();
-            if ($row = $result->fetch_assoc()) {
-                $to = $row['phone']; // e.g. +639XXXXXXXXX
-                $student_name = $row['student_name'];
-                $date_today = date("Y-m-d");
+            // Check existence (prepare)
+            $sql = "SELECT id FROM attendance WHERE student_id = ? AND subject_id = ? AND date = ?";
+            $check = safe_prepare($conn, $sql);
+            if ($check === false) continue;
+            $check->bind_param("iis", $student_id, $subject_id, $date);
+            $check->execute();
+            $check->store_result();
 
-                // ✅ Sms8.io Configuration
-                $api_key = "ba176e34302a4e16687e4bb5d7c286d26dcfbe95";
-                $message = "Attendify Notice: $student_name was marked ABSENT on $date_today. Please contact the teacher if this is incorrect.";
-                $encoded_message = urlencode($message);
-
-                // ✅ Use the Front API
-                $url = "https://app.sms8.io/services/sendFront.php?key={$api_key}&number={$to}&message={$encoded_message}";
-
-                // Send API Request
-                $response = @file_get_contents($url);
-
-                // Log success or failure
-                if ($response === FALSE) {
-                    error_log("❌ Sms8.io failed to send message to $to");
-                } else {
-                    error_log("✅ Sms8.io sent message successfully to $to");
+            if ($check->num_rows === 0) {
+                // insert
+                $sql = "INSERT INTO attendance (student_id, subject_id, date, status, created_at) VALUES (?, ?, ?, ?, NOW())";
+                $insert = safe_prepare($conn, $sql);
+                if ($insert !== false) {
+                    $insert->bind_param("iiss", $student_id, $subject_id, $date, $status);
+                    $insert->execute();
+                    $insert->close();
+                    $count++;
+                }
+            } else {
+                // update existing (in case teacher re-marks)
+                $sql = "UPDATE attendance SET status = ?, updated_at = NOW() WHERE student_id = ? AND subject_id = ? AND date = ?";
+                $update = safe_prepare($conn, $sql);
+                if ($update !== false) {
+                    $update->bind_param("siis", $status, $student_id, $subject_id, $date);
+                    $update->execute();
+                    $update->close();
+                    $count++;
                 }
             }
-            $getPhone->close();
-        }
-    }
+            $check->close();
 
-    $message = "✅ Attendance marked successfully and SMS sent for absentees!";
-    log_activity($conn, $teacher_id, 'teacher', 'Mark Attendance', "Marked attendance for Subject ID: $subject_id on $attendance_date");
+            // Fetch student and parent's phone
+            $sql = "SELECT student_name, parent_phone FROM students WHERE id = ?";
+            $s = safe_prepare($conn, $sql);
+            if ($s === false) continue;
+            $s->bind_param("i", $student_id);
+            $s->execute();
+            $student = $s->get_result()->fetch_assoc();
+            $s->close();
+
+            $parent_phone = isset($student['parent_phone']) ? trim($student['parent_phone']) : '';
+            if ($parent_phone === '' || $parent_phone === null) {
+                // skip SMS if no phone
+                continue;
+            }
+
+            // call send_sms.php (local internal endpoint)
+            $sms_url = "http://localhost/Attendify/teacher-dashboard/send_sms.php";
+            $postData = [
+                'student_id' => $student_id,
+                'status' => $status
+            ];
+
+            // use cURL and suppress fatal behavior; log errors
+            $ch = curl_init($sms_url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+            $response = curl_exec($ch);
+            $curlErr = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlErr) {
+                // log
+                @file_put_contents(__DIR__ . "/../logs/sms_errors.log", date("Y-m-d H:i:s") . " | CURL Error when sending SMS: " . $curlErr . PHP_EOL, FILE_APPEND);
+            } else {
+                $sms_sent++;
+            }
+        } // foreach statuses
+
+        $message = "✅ Attendance saved/updated for today ($count record/s). SMS sent to $sms_sent parent/s.";
+    }
 }
 
-/* ================================
-   ✅ Fetch Students for Selected Subject
-================================ */
+// =========================
+// Fetch enrolled students for the selected subject
+// =========================
 $students = [];
 if ($selected_subject_id) {
-    $query = "
-        SELECT s.id AS student_id, s.student_name
+    $sql = "
+        SELECT s.id, s.student_name, s.parent_phone
         FROM enrollments e
         JOIN students s ON e.student_id = s.id
         WHERE e.subject_id = ?
         ORDER BY s.student_name
     ";
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param("i", $selected_subject_id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    while ($row = $res->fetch_assoc()) $students[] = $row;
-    $stmt->close();
+    $stmt = safe_prepare($conn, $sql);
+    if ($stmt !== false) {
+        $stmt->bind_param("i", $selected_subject_id);
+        $stmt->execute();
+        $students = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+    } else {
+        $message = $message ? $message . " Could not load enrolled students." : "⚠️ Could not load enrolled students (see logs).";
+    }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Attendance | Teacher Dashboard</title>
+<meta charset="utf-8">
+<title>📋 Mark Attendance | Attendify</title>
 <style>
-body { margin:0; font-family:'Segoe UI',Arial,sans-serif; background:#f4f6fa; display:flex; height:100vh; }
-
-/* SIDEBAR */
-.sidebar { width:210px; background:#17345f; color:white; height:100vh; position:fixed; display:flex; flex-direction:column; align-items:center; padding-top:15px; }
-.sidebar img { width:55%; margin-bottom:10px; border-radius:5px; }
-.sidebar h2 { font-size:16px; margin-bottom:20px; text-align:center; }
-.sidebar a { display:block; color:white; text-decoration:none; padding:8px 15px; width:85%; text-align:left; border-radius:5px; margin:3px 0; font-size:14px; transition:0.3s; }
-.sidebar a:hover { background:#e21b23; }
-.logout { background:#e21b23; margin-top:auto; margin-bottom:20px; text-align:center; border-radius:6px; padding:8px; width:80%; }
-
-/* MAIN */
-.main { margin-left:210px; flex-grow:1; display:flex; flex-direction:column; }
-
-/* TOPBAR */
-.topbar { background:white; padding:12px 25px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
-.topbar h1 { margin:0; color:#17345f; font-size:20px; }
-
-/* PROFILE */
-.topbar .profile { display:flex; align-items:center; gap:12px; }
-.profile-info { display:flex; align-items:center; gap:8px; }
-.profile-name { color:#17345f; font-weight:600; font-size:15px; }
-.wave { font-size:16px; }
-.profile-img { width:38px; height:38px; border-radius:50%; object-fit:cover; border:2px solid #17345f; box-shadow:0 2px 6px rgba(0,0,0,0.12); }
-
-/* CONTENT */
-.content { padding:20px 25px; }
-.message,.error { padding:10px; border-radius:5px; margin-bottom:15px; }
-.message { background:#e7f3e7; color:#2d662d; }
-.error { background:#ffe7e7; color:#8b0000; }
-
-/* TABLE */
-table { width:100%; border-collapse:collapse; margin-top:15px; }
-th,td { border:1px solid #ccc; padding:10px; text-align:center; }
+body { font-family: Arial, sans-serif; background: #f4f6fa; margin: 0; }
+.sidebar { width: 210px; background: #17345f; color: white; height: 100vh; position: fixed; display:flex; flex-direction:column; align-items:center; padding-top:15px; }
+.sidebar a { color:white; text-decoration:none; display:block; width:85%; padding:8px 15px; margin:3px 0; border-radius:5px; }
+.sidebar a:hover, .sidebar .active { background: #e21b23; }
+.main { margin-left:210px; padding:25px; }
+table { width:100%; border-collapse:collapse; background:white; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+th,td { padding:10px; border:1px solid #ddd; text-align:center; }
 th { background:#17345f; color:white; }
-tr:nth-child(even){ background:#f9f9f9; }
-button { background:#17345f; color:white; padding:8px 15px; border:none; border-radius:6px; cursor:pointer; }
+button { background:#17345f; color:white; border:none; border-radius:6px; padding:8px 15px; cursor:pointer; }
 button:hover { background:#e21b23; }
-
-/* POPUP */
-.popup {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: white;
-  padding: 20px 30px;
-  border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-  text-align: center;
-  display: none;
-  z-index: 999;
-}
-.popup.success { border-left: 6px solid #2ecc71; }
-.popup.error { border-left: 6px solid #e74c3c; }
+.warning { color:red; font-weight:bold; }
+.message { background:#e7f3e7; color:#2d662d; padding:10px; border-radius:5px; margin-bottom:10px; }
+.remove-btn { background:#c62828; border:none; color:white; border-radius:6px; padding:6px 10px; cursor:pointer; }
+.remove-btn:hover { background:#a51616; }
 </style>
 </head>
 <body>
-
 <div class="sidebar">
-    <img src="../ama.png" alt="ACLC Logo">
-    <h2>Teacher Panel</h2>
-    <a href="attendance.php">📊 Attendance</a>
-    <a href="manage_students.php">👥 Manage Students</a>
-    <a href="assign_students.php" >🎓 Assign Students</a>
-    <a href="teacher_profile.php">👤 Profile</a>
-    <a href="feedback.php">💬 Feedback</a>
-    <a href="../logout.php" class="logout">🚪 Logout</a>
+  <img src="../ama.png" width="80%">
+  <h2>Teacher Panel</h2>
+  <a href="teacher-dashboard.php">🏠 Dashboard</a>
+  <a href="attendance.php" class="active">📋 Mark Attendance</a>
+  <a href="attendance_history.php">🕓 Attendance History</a>
+  <a href="assign_students.php">🎓 Assign Students</a>
+  <a href="manage_students.php">👥 Manage Students</a>
+  <a href="teacher_profile.php">👤 Profile</a>
+  <a href="../logout.php">🚪 Logout</a>
 </div>
-
 
 <div class="main">
-    <div class="topbar">
-        <h1>Mark Attendance</h1>
-        <div class="profile">
-            <div class="profile-info">
-                <span class="wave">👋</span>
-                <span class="profile-name"><?= htmlspecialchars($teacher_name); ?></span>
-            </div>
-            <img src="<?= htmlspecialchars($profile_image); ?>" alt="Profile" class="profile-img">
-        </div>
-    </div>
+  <h1>📋 Mark Attendance</h1>
+  <?php if (!empty($message)): ?>
+    <div class="message"><?= $message ?></div>
+  <?php endif; ?>
 
-    <div class="content">
-        <?php if ($message): ?>
-            <script>
-                window.onload = function() {
-                    const popup = document.createElement('div');
-                    popup.className = 'popup success';
-                    popup.innerHTML = '<h3><?= addslashes($message); ?></h3>';
-                    document.body.appendChild(popup);
-                    popup.style.display = 'block';
-                    setTimeout(() => popup.style.display = 'none', 4000);
-                }
-            </script>
+  <form method="POST">
+    <label><b>Select Subject:</b></label>
+    <select name="subject_id" onchange="this.form.submit()" required>
+      <option value="">-- Choose Subject --</option>
+      <?php foreach ($subjects as $sub): ?>
+        <option value="<?= htmlspecialchars($sub['id']) ?>" <?= ($selected_subject_id == $sub['id']) ? 'selected' : '' ?>>
+          <?= htmlspecialchars($sub['subject_name']) ?> (<?= htmlspecialchars($sub['class_time']) ?>)
+        </option>
+      <?php endforeach; ?>
+    </select>
+
+    <?php if ($selected_subject_id): ?>
+      <p><b>Date:</b> <?= date("F j, Y"); ?></p>
+      <table>
+        <tr><th>Student</th><th>Parent Contact</th><th>Present</th><th>Absent</th><th>Late</th><th>Remove</th></tr>
+        <?php if ($students): foreach ($students as $s): ?>
+          <tr>
+            <td><?= htmlspecialchars($s['student_name']); ?></td>
+            <td><?= ($s['parent_phone'] === null || $s['parent_phone'] === '') ? '<span class="warning">⚠️ No number</span>' : htmlspecialchars($s['parent_phone']); ?></td>
+            <td><input type="radio" name="attendance[<?= intval($s['id']) ?>]" value="Present"></td>
+            <td><input type="radio" name="attendance[<?= intval($s['id']) ?>]" value="Absent"></td>
+            <td><input type="radio" name="attendance[<?= intval($s['id']) ?>]" value="Late"></td>
+            <td><button type="button" class="remove-btn" onclick="removeStudent(<?= intval($s['id']) ?>, <?= intval($selected_subject_id) ?>)">🗑️</button></td>
+          </tr>
+        <?php endforeach; else: ?>
+          <tr><td colspan="6"><i>No students enrolled for this subject.</i></td></tr>
         <?php endif; ?>
-
-        <form method="POST">
-            <label><b>Subject:</b></label>
-            <select name="subject_id" onchange="this.form.submit()" required>
-                <option value="">-- Select Subject --</option>
-                <?php foreach ($subjects as $sub): ?>
-                    <option value="<?= $sub['id']; ?>" <?= $selected_subject_id == $sub['id'] ? 'selected' : ''; ?>>
-                        <?= htmlspecialchars($sub['subject_name']); ?> (<?= htmlspecialchars($sub['class_time']); ?>)
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </form>
-
-        <?php if ($selected_subject_id): ?>
-            <form method="POST">
-                <input type="hidden" name="subject_id" value="<?= $selected_subject_id; ?>">
-                <table>
-                    <tr>
-                        <th>Student Name</th>
-                        <th>Present</th>
-                        <th>Absent</th>
-                        <th>Late</th>
-                    </tr>
-                    <?php if ($students): ?>
-                        <?php foreach ($students as $stu): ?>
-                        <tr>
-                            <td><?= htmlspecialchars($stu['student_name']); ?></td>
-                            <td><input type="radio" name="attendance[<?= $stu['student_id']; ?>]" value="Present" required></td>
-                            <td><input type="radio" name="attendance[<?= $stu['student_id']; ?>]" value="Absent"></td>
-                            <td><input type="radio" name="attendance[<?= $stu['student_id']; ?>]" value="Late"></td>
-                        </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr><td colspan="4"><i>No students enrolled in this subject.</i></td></tr>
-                    <?php endif; ?>
-                </table>
-                <br>
-                <button type="submit" name="save_attendance">💾 Save Attendance</button>
-            </form>
-        <?php endif; ?>
-    </div>
+      </table>
+      <br>
+      <button type="submit" name="save_attendance">💾 Save Attendance</button>
+    <?php endif; ?>
+  </form>
 </div>
+
+<script>
+function removeStudent(studentId, subjectId) {
+  if (confirm("Remove this student from the subject?")) {
+    window.location.href = "attendance.php?remove=" + encodeURIComponent(studentId) + "&subject=" + encodeURIComponent(subjectId);
+  }
+}
+
+// Auto-hide success message after 5 seconds
+document.addEventListener("DOMContentLoaded", () => {
+  const messageBox = document.querySelector(".message");
+  if (messageBox) {
+    setTimeout(() => {
+      messageBox.style.transition = "opacity 0.5s";
+      messageBox.style.opacity = "0";
+      setTimeout(() => messageBox.remove(), 500); // remove after fade
+    }, 5000); // 5 seconds
+  }
+});
+</script>
 </body>
 </html>

@@ -6,9 +6,8 @@ session_start();
 require '../db_connect.php';
 require_once __DIR__ . '/../log_activity.php';
 include __DIR__ . '/admin_nav.php';
-include __DIR__ . '/admin_default_profile.php';
 
-// 🔒 Restrict access to admin only
+// 🔒 Admin-only access
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login.php");
     exit();
@@ -16,8 +15,9 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 $admin_id = $_SESSION['user_id'];
 $admin_name = "Admin User";
+$message = "";
 
-// ✅ Fetch admin name if available
+// ✅ Fetch admin name
 $stmt = $conn->prepare("SELECT full_name FROM admin_profiles WHERE user_id = ?");
 if ($stmt) {
     $stmt->bind_param("i", $admin_id);
@@ -27,176 +27,132 @@ if ($stmt) {
     $stmt->close();
 }
 
-$message = "";
-
-/* ================================
-   ✅ CREATE NEW CLASS
-================================ */
-if (isset($_POST['create_class'])) {
-    $class_name = trim($_POST['class_name'] ?? '');
+/* =========================================
+   ✅ ADD CLASS (connected with teacher)
+========================================= */
+if (isset($_POST['add_class'])) {
+    $class_name = trim($_POST['class_name']);
+    $teacher_id = intval($_POST['teacher_id'] ?? 0);
+    $class_time = trim($_POST['class_time']);
 
     if ($class_name === '') {
         $message = "⚠️ Please enter a class name.";
     } else {
-        $stmt = $conn->prepare("INSERT INTO classes (class_name, created_at) VALUES (?, NOW())");
-        if ($stmt) {
-            $stmt->bind_param("s", $class_name);
-            $stmt->execute();
-            $stmt->close();
+        $stmt = $conn->prepare("INSERT INTO classes (class_name, teacher_id, class_time, created_at) VALUES (?, ?, ?, NOW())");
+        $stmt->bind_param("sis", $class_name, $teacher_id, $class_time);
 
-            // 🔹 Log the action
-            log_activity($conn, $_SESSION['user_id'], $_SESSION['role'], 'Create Class', "Created class: $class_name");
-
-            $message = "✅ Class created successfully.";
+        if ($stmt->execute()) {
+            log_activity($conn, $admin_id, 'admin', 'Add Class', "Created class: $class_name");
+            $message = "✅ Class added successfully!";
         } else {
-            $message = "❌ Database error: " . $conn->error;
+            $message = "❌ Error: " . $conn->error;
         }
+        $stmt->close();
     }
 }
 
-/* ================================
-   ✅ ASSIGN STUDENT TO CLASS
-================================ */
-if (isset($_POST['assign_student'])) {
-    $class_id = intval($_POST['class_id']);
-    $student_id = intval($_POST['student_id']);
-
-    $check = $conn->prepare("SELECT id FROM student_classes WHERE class_id = ? AND student_id = ?");
-    $check->bind_param("ii", $class_id, $student_id);
-    $check->execute();
-    $check->store_result();
-
-    if ($check->num_rows === 0) {
-        $check->close();
-
-        $insert = $conn->prepare("INSERT INTO student_classes (class_id, student_id, created_at) VALUES (?, ?, NOW())");
-        $insert->bind_param("ii", $class_id, $student_id);
-        $insert->execute();
-        $insert->close();
-
-        // 🔹 Fetch student email for readable log
-        $student_email = '';
-        $fetch = $conn->prepare("SELECT email FROM users WHERE id = ?");
-        $fetch->bind_param("i", $student_id);
-        $fetch->execute();
-        $fetch->bind_result($student_email);
-        $fetch->fetch();
-        $fetch->close();
-
-        // 🔹 Fetch class name for readable log
-        $class_name = '';
-        $fetch2 = $conn->prepare("SELECT class_name FROM classes WHERE id = ?");
-        $fetch2->bind_param("i", $class_id);
-        $fetch2->execute();
-        $fetch2->bind_result($class_name);
-        $fetch2->fetch();
-        $fetch2->close();
-
-        // ✅ Log assignment action
-        log_activity($conn, $_SESSION['user_id'], $_SESSION['role'], 'Assign Student', "Assigned $student_email to class: $class_name");
-
-        $message = "✅ Student assigned successfully.";
-    } else {
-        $message = "⚠️ This student is already assigned to this class.";
-        $check->close();
-    }
-}
-
-/* ================================
-   ✅ REMOVE STUDENT FROM CLASS
-================================ */
-if (isset($_GET['remove'])) {
-    $remove_id = intval($_GET['remove']);
-
-    // Fetch class and student info for logs before deletion
-    $fetch = $conn->prepare("
-        SELECT u.email, c.class_name
-        FROM student_classes sc
-        JOIN users u ON sc.student_id = u.id
-        JOIN classes c ON sc.class_id = c.id
-        WHERE sc.id = ?
-    ");
-    $fetch->bind_param("i", $remove_id);
-    $fetch->execute();
-    $fetch->bind_result($email, $class_name);
-    $fetch->fetch();
-    $fetch->close();
-
-    // Delete the record
-    $del = $conn->prepare("DELETE FROM student_classes WHERE id = ?");
-    $del->bind_param("i", $remove_id);
-    $del->execute();
-    $del->close();
-
-    // ✅ Log removal action
-    log_activity($conn, $_SESSION['user_id'], $_SESSION['role'], 'Remove Student', "Removed $email from class: $class_name");
-
-    $message = "🗑️ Student removed from class.";
-}
-
-/* ================================
+/* =========================================
    ✅ DELETE CLASS
-================================ */
-if (isset($_GET['delete_class'])) {
-    $class_id = intval($_GET['delete_class']);
-    $class_name = '';
-
-    // Fetch name before deletion
+========================================= */
+if (isset($_GET['delete'])) {
+    $id = intval($_GET['delete']);
     $fetch = $conn->prepare("SELECT class_name FROM classes WHERE id = ?");
-    $fetch->bind_param("i", $class_id);
+    $fetch->bind_param("i", $id);
     $fetch->execute();
-    $fetch->bind_result($class_name);
+    $fetch->bind_result($cname);
     $fetch->fetch();
     $fetch->close();
 
-    // Delete the class
-    $del = $conn->prepare("DELETE FROM classes WHERE id = ?");
-    $del->bind_param("i", $class_id);
-    $del->execute();
-    $del->close();
+    // Delete related student_class connections first
+    $conn->query("DELETE FROM student_classes WHERE class_id = $id");
 
-    // ✅ Log deletion
-    log_activity($conn, $_SESSION['user_id'], $_SESSION['role'], 'Delete Class', "Deleted class: $class_name");
-
-    $message = "🗑️ Class deleted successfully.";
+    // Delete class
+    $stmt = $conn->prepare("DELETE FROM classes WHERE id = ?");
+    $stmt->bind_param("i", $id);
+    if ($stmt->execute()) {
+        log_activity($conn, $admin_id, 'admin', 'Delete Class', "Deleted class: $cname");
+        $message = "🗑️ Class deleted successfully.";
+    }
+    $stmt->close();
 }
 
-/* ================================
-   ✅ FETCH CLASSES & STUDENTS
-================================ */
-$classes_res = $conn->query("SELECT * FROM classes ORDER BY class_name ASC");
-$classes = $classes_res ? $classes_res->fetch_all(MYSQLI_ASSOC) : [];
+/* =========================================
+   ✅ FETCH TEACHERS
+========================================= */
+$teachers = $conn->query("SELECT id, email FROM users WHERE role='teacher' ORDER BY email ASC");
 
-$students_res = $conn->query("SELECT id, email FROM users WHERE role = 'student' ORDER BY email ASC");
-$students = $students_res ? $students_res->fetch_all(MYSQLI_ASSOC) : [];
+/* =========================================
+   ✅ FETCH CLASSES WITH CONNECTIONS
+========================================= */
+$q = "
+SELECT 
+    c.id, 
+    c.class_name, 
+    c.class_time,
+    COALESCE(u.email, 'Unassigned') AS teacher_email,
+    COUNT(sc.student_id) AS student_count
+FROM classes c
+LEFT JOIN users u ON c.teacher_id = u.id
+LEFT JOIN student_classes sc ON sc.class_id = c.id
+GROUP BY c.id
+ORDER BY c.class_name ASC
+";
+$res = $conn->query($q);
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Manage Classes | Attendify Admin</title>
 <style>
-:root {
-    --primary-color: #17345f;
-    --accent-color: #e21b23;
-    --background-color: #f4f6fa;
-    --white: #ffffff;
-}
 body {
     margin: 0;
     font-family: 'Segoe UI', Arial, sans-serif;
-    background: var(--background-color);
+    background: #f4f6fa;
     display: flex;
+    height: 100vh;
 }
+
+/* SIDEBAR */
+.sidebar {
+    width: 210px;
+    background: #17345f;
+    color: white;
+    height: 100vh;
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 15px;
+}
+.sidebar img {
+    width: 55%;
+    margin-bottom: 10px;
+}
+.sidebar a:hover, .sidebar a.active {
+    background: #e21b23;
+}
+.logout {
+    background: #e21b23;
+    color: white;
+    margin-top: auto;
+    margin-bottom: 20px;
+    text-align: center;
+    border-radius: 6px;
+    padding: 8px;
+    width: 80%;
+    font-size: 14px;
+}
+
+/* MAIN */
 .main {
     margin-left: 210px;
-    margin-top: 60px; 
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 60px);
 }
+
+/* TOPBAR */
 .topbar {
     background: white;
     padding: 12px 25px;
@@ -204,158 +160,144 @@ body {
     justify-content: space-between;
     align-items: center;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    position: fixed;
-    top: 0;
-    left: 210px;
-    right: 0;
-    height: 60px;
-    z-index: 1000;
 }
-.topbar h1 { color: var(--primary-color); font-size: 20px; margin: 0; }
-.profile { display: flex; align-items: center; gap: 10px; font-weight: 500; }
-.profile img { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--primary-color); object-fit: cover; }
-.section {
-    background: var(--white);
-    
-    border-radius: 10px;
+.topbar h1 {
+    color: #17345f;
+}
+
+/* CONTENT */
+.content {
+    padding: 30px 25px;
+}
+h2 {
+    color: #17345f;
+    border-bottom: 3px solid #e21b23;
+    padding-bottom: 5px;
+}
+form {
+    background: white;
     padding: 20px;
-    margin: 20px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
-.section h3 {
-    color: var(--primary-color);
-    border-bottom: 3px solid var(--accent-color);
-    display: inline-block;
-    padding-bottom: 3px;
-    margin-bottom: 15px;
-}
-.message {
-    background: #fff3cd;
-    color: #856404;
-    padding: 10px;
-    border-radius: 6px;
-    margin: 20px;
-    border-left: 5px solid #ffeeba;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 input, select, button {
     padding: 10px;
+    margin-right: 10px;
     border-radius: 6px;
     border: 1px solid #ccc;
     font-size: 14px;
 }
 button {
-    background: var(--primary-color);
+    background: #17345f;
     color: white;
     border: none;
     cursor: pointer;
-    transition: 0.3s;
-    font-weight: 500;
 }
-button:hover { background: #1d4b83; }
-.table-container { overflow-x: auto; }
+button:hover {
+    background: #1d4b83;
+}
+
+/* TABLE */
 table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 14px;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+thead {
+    background: #17345f;
+    color: white;
 }
 th, td {
-    padding: 10px;
-    text-align: left;
+    padding: 12px 15px;
     border-bottom: 1px solid #ddd;
+    text-align: left;
 }
-th { background: var(--primary-color); color: white; }
-tr:hover { background: #f1f3f9; }
-.action-btn {
-    background: var(--accent-color);
+tr:nth-child(even) {
+    background: #f9f9f9;
+}
+.delete {
     color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 5px 10px;
+    background: #e21b23;
+    padding: 6px 12px;
+    border-radius: 5px;
     text-decoration: none;
-    font-size: 13px;
-    cursor: pointer;
 }
-.action-btn:hover { background: #b9161d; }
+.delete:hover {
+    background: #c0181f;
+}
 </style>
 </head>
 <body>
 
+<div class="sidebar">
+  <img src="../ama.png" alt="ACLC Logo">
+  <h2>Admin Panel</h2>
+  <a href="admin.php">🏠 Dashboard</a>
+  <a href="manage_users.php">👥 Manage Users</a>
+  <a href="manage_subjects.php">📘 Manage Subjects</a>
+  <a href="manage_classes.php" class="active">🏫 Manage Classes</a>
+  <a href="attendance_report.php">📊 Attendance Reports</a>
+  <a href="assign_students.php">🎓 Assign Students</a>
+  <a href="activity_log.php">🕒 Activity Log</a>
+  <a href="user_feedback.php">💬 Feedback</a>
+  <a href="../logout.php" class="logout">🚪 Logout</a>
+</div>
+
 <div class="main">
   <div class="topbar">
     <h1>Manage Classes</h1>
-    <div class="profile">
-      <span>👋 <?= htmlspecialchars($admin_name); ?></span>
-      <img src="../uploads/admins/default.png" alt="Profile">
-    </div>
+    <div>👋 <?= htmlspecialchars($admin_name); ?></div>
   </div>
 
-  <?php if ($message): ?>
-    <div class="message"><?= htmlspecialchars($message) ?></div>
-  <?php endif; ?>
+  <div class="content">
+    <?php if ($message): ?>
+      <div style="background:#fff3cd;color:#856404;padding:10px;border-radius:6px;margin-bottom:15px;">
+        <?= htmlspecialchars($message) ?>
+      </div>
+    <?php endif; ?>
 
-
-  <div class="section">
-    <h3>👥 Assign Student to Class</h3>
+    <h2>➕ Add New Class</h2>
     <form method="POST">
-      <select name="class_id" required>
-        <option value="">Select Class</option>
-        <?php foreach ($classes as $c): ?>
-          <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['class_name']) ?></option>
-        <?php endforeach; ?>
+      <input type="text" name="class_name" placeholder="Class Name (e.g. BSIT 1A)" required>
+      <input type="text" name="class_time" placeholder="Schedule (e.g. M/W 1PM-3PM)">
+      <select name="teacher_id">
+        <option value="0">-- Assign Teacher (optional) --</option>
+        <?php while ($t = $teachers->fetch_assoc()): ?>
+          <option value="<?= $t['id'] ?>"><?= htmlspecialchars($t['email']) ?></option>
+        <?php endwhile; ?>
       </select>
-
-      <select name="student_id" required>
-        <option value="">Select Student</option>
-        <?php foreach ($students as $s): ?>
-          <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['email']) ?></option>
-        <?php endforeach; ?>
-      </select>
-
-      <button type="submit" name="assign_student">Assign</button>
+      <button type="submit" name="add_class">Add Class</button>
     </form>
-  </div>
 
-  <div class="section table-container">
-    <h3>📋 Current Classes</h3>
+    <h2>🏫 Class List</h2>
     <table>
-      <tr>
-        <th>ID</th>
-        <th>Class Name</th>
-        <th>Students</th>
-        <th>Action</th>
-      </tr>
-      <?php if (count($classes) > 0): ?>
-        <?php foreach ($classes as $c): 
-            $class_id = intval($c['id']);
-            $roster = $conn->query("
-              SELECT sc.id, u.email 
-              FROM student_classes sc
-              JOIN users u ON sc.student_id = u.id
-              WHERE sc.class_id = $class_id
-              ORDER BY u.email
-            ");
-        ?>
-          <tr>
-            <td><?= $c['id'] ?></td>
-            <td><?= htmlspecialchars($c['class_name']) ?></td>
-            <td>
-              <?php if ($roster && $roster->num_rows > 0): ?>
-                <?php while($r = $roster->fetch_assoc()): ?>
-                  <?= htmlspecialchars($r['email']) ?>
-                  <a href="manage_classes.php?remove=<?= $r['id'] ?>" class="action-btn" onclick="return confirm('Remove this student?')">Remove</a><br>
-                <?php endwhile; ?>
-              <?php else: ?>
-                <i>No students assigned.</i>
-              <?php endif; ?>
-            </td>
-            <td>
-              <a href="manage_classes.php?delete_class=<?= $c['id'] ?>" class="action-btn" onclick="return confirm('Delete this class?')">Delete</a>
-            </td>
-          </tr>
-        <?php endforeach; ?>
-      <?php else: ?>
-        <tr><td colspan="4"><i>No classes created yet.</i></td></tr>
-      <?php endif; ?>
+      <thead>
+        <tr>
+          <th>ID</th><th>Class Name</th><th>Schedule</th><th>Teacher</th><th>Students</th><th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if ($res->num_rows > 0): ?>
+          <?php while ($row = $res->fetch_assoc()): ?>
+            <tr>
+              <td><?= $row['id'] ?></td>
+              <td><?= htmlspecialchars($row['class_name']) ?></td>
+              <td><?= htmlspecialchars($row['class_time']) ?></td>
+              <td><?= htmlspecialchars($row['teacher_email']) ?></td>
+              <td><?= $row['student_count'] ?></td>
+              <td><a href="?delete=<?= $row['id'] ?>" class="delete" onclick="return confirm('Are you sure you want to delete this class?');">Delete</a></td>
+            </tr>
+          <?php endwhile; ?>
+        <?php else: ?>
+          <tr><td colspan="6" style="text-align:center;color:#777;">No classes found.</td></tr>
+        <?php endif; ?>
+      </tbody>
     </table>
   </div>
-<
+</div>
+</body>
+</html>

@@ -3,6 +3,7 @@ session_start();
 require '../db_connect.php';
 require '../log_activity.php';
 
+// ✅ Restrict to teachers
 if (!isset($_SESSION['teacher_id'])) {
     header("Location: ../login.php");
     exit();
@@ -12,22 +13,14 @@ $teacher_id = $_SESSION['teacher_id'];
 $message = "";
 
 /* ================================
-   ✅ Fetch subjects (for this teacher)
+   ✅ Fetch subjects for this teacher
 ================================ */
 $subjects = [];
-$sub_query = "
-  SELECT id, subject_name, class_time 
-  FROM subjects 
-  WHERE teacher_id = ?
-  ORDER BY subject_name
-";
-$stmt = $conn->prepare($sub_query);
+$stmt = $conn->prepare("SELECT id, subject_name, class_time FROM subjects WHERE teacher_id = ? ORDER BY subject_name");
 $stmt->bind_param("i", $teacher_id);
 $stmt->execute();
 $res = $stmt->get_result();
-while ($row = $res->fetch_assoc()) {
-    $subjects[] = $row;
-}
+while ($row = $res->fetch_assoc()) $subjects[] = $row;
 $stmt->close();
 
 /* ================================
@@ -35,32 +28,46 @@ $stmt->close();
 ================================ */
 $students = [];
 $res = $conn->query("SELECT id AS student_id, student_name, email FROM students ORDER BY student_name");
-while ($row = $res->fetch_assoc()) {
-    $students[] = $row;
-}
+while ($row = $res->fetch_assoc()) $students[] = $row;
 
 /* ================================
-   ✅ Handle form submission
+   ✅ Handle Assign Form
 ================================ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['subject_id'])) {
     $subject_id = intval($_POST['subject_id']);
     $selected_students = $_POST['students'] ?? [];
 
-    // Remove old enrollments for this subject
-    $del = $conn->prepare("DELETE FROM enrollments WHERE subject_id = ?");
-    $del->bind_param("i", $subject_id);
-    $del->execute();
+    // Get current enrollments
+    $current = [];
+    $stmt = $conn->prepare("SELECT student_id FROM enrollments WHERE subject_id = ?");
+    $stmt->bind_param("i", $subject_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($r = $res->fetch_assoc()) $current[] = $r['student_id'];
+    $stmt->close();
 
-    // Insert new ones
+    // ✅ Enroll new students
     foreach ($selected_students as $sid) {
-        $stmt = $conn->prepare("INSERT INTO enrollments (student_id, subject_id) VALUES (?, ?)");
-        $stmt->bind_param("ii", $sid, $subject_id);
-        $stmt->execute();
-        $stmt->close();
+        if (!in_array($sid, $current)) {
+            $stmt = $conn->prepare("INSERT INTO enrollments (student_id, subject_id) VALUES (?, ?)");
+            $stmt->bind_param("ii", $sid, $subject_id);
+            $stmt->execute();
+            $stmt->close();
+        }
     }
 
-    $message = "✅ Student assignments updated successfully!";
-    log_activity($conn, $teacher_id, 'teacher', 'Assign Students', "Assigned students to subject ID $subject_id");
+    // ✅ Unenroll unchecked students
+    foreach ($current as $sid) {
+        if (!in_array($sid, $selected_students)) {
+            $stmt = $conn->prepare("DELETE FROM enrollments WHERE student_id = ? AND subject_id = ?");
+            $stmt->bind_param("ii", $sid, $subject_id);
+            $stmt->execute();
+            $stmt->close();
+        }
+    }
+
+    $message = "✅ Student assignments permanently updated!";
+    log_activity($conn, $teacher_id, 'teacher', 'Assign Students', "Updated permanent enrollments for subject ID: $subject_id");
 }
 
 /* ================================
@@ -68,19 +75,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['subject_id'])) {
 ================================ */
 $current_subject_id = $_POST['subject_id'] ?? null;
 $current_enrollments = [];
-
 if ($current_subject_id) {
     $stmt = $conn->prepare("SELECT student_id FROM enrollments WHERE subject_id = ?");
     $stmt->bind_param("i", $current_subject_id);
     $stmt->execute();
     $res = $stmt->get_result();
-    while ($r = $res->fetch_assoc()) {
-        $current_enrollments[] = $r['student_id'];
-    }
+    while ($r = $res->fetch_assoc()) $current_enrollments[] = $r['student_id'];
     $stmt->close();
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -111,14 +114,15 @@ button:hover { background:#e21b23; }
 </head>
 <body>
 <div class="sidebar">
-    <img src="../ama.png" alt="ACLC Logo">
-    <h2>Teacher Panel</h2>
-    <a href="attendance.php">📊 Attendance</a>
-    <a href="manage_students.php">👥 Manage Students</a>
-    <a href="assign_students.php" >🎓 Assign Students</a>
-    <a href="teacher_profile.php">👤 Profile</a>
-    <a href="feedback.php">💬 Feedback</a>
-    <a href="../logout.php" class="logout">🚪 Logout</a>
+  <img src="../ama.png" alt="ACLC Logo">
+  <h2>Teacher Panel</h2>
+  <a href="teacher-dashboard.php">🏠 Dashboard</a>
+  <a href="attendance.php">📋 Mark Attendance</a>
+  <a href="attendance_history.php">🕓 Attendance History</a>
+  <a href="assign_students.php">🎓 Assign Students</a>
+  <a href="manage_students.php">👥 Manage Students</a>
+  <a href="teacher_profile.php">👤 Profile</a>
+  <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
 
 <div class="main">
@@ -138,7 +142,7 @@ button:hover { background:#e21b23; }
           <option value="">-- Select Subject --</option>
           <?php foreach ($subjects as $s): ?>
             <option value="<?= $s['id']; ?>" <?= ($current_subject_id == $s['id']) ? 'selected' : ''; ?>>
-              <?= htmlspecialchars($s['subject_name']); ?>
+              <?= htmlspecialchars($s['subject_name']); ?> (<?= htmlspecialchars($s['class_time']); ?>)
             </option>
           <?php endforeach; ?>
         </select>
@@ -148,7 +152,7 @@ button:hover { background:#e21b23; }
           <div class="student-list">
             <?php foreach ($students as $stu): ?>
               <label class="student-item">
-                <input type="checkbox" name="students[]" value="<?= $stu['student_id']; ?>" 
+                <input type="checkbox" name="students[]" value="<?= $stu['student_id']; ?>"
                   <?= in_array($stu['student_id'], $current_enrollments) ? 'checked' : ''; ?>>
                 <?= htmlspecialchars($stu['student_name']); ?> <small>(<?= htmlspecialchars($stu['email']); ?>)</small>
               </label>

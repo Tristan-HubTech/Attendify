@@ -5,9 +5,9 @@ ini_set('display_errors', 1);
 session_start();
 require '../db_connect.php';
 require_once __DIR__ . '/../log_activity.php';
-include __DIR__ . '/admin_default_profile.php';
 include __DIR__ . '/admin_nav.php';
-// 🔒 Admin only
+
+// 🔒 Restrict to admins only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login.php");
     exit();
@@ -15,19 +15,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 $message = "";
 $admin_id = $_SESSION['user_id'];
-$admin_name = "Admin User";
-
-// ✅ Fetch admin name if available
-$stmt = $conn->prepare("SELECT full_name FROM admin_profiles WHERE user_id = ?");
-if ($stmt) {
-    $stmt->bind_param("i", $admin_id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    if ($row = $res->fetch_assoc()) {
-        $admin_name = $row['full_name'];
-    }
-    $stmt->close();
-}
 
 /* ================================
    ✅ ADD SUBJECT
@@ -45,9 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_subject'])) {
             $stmt->bind_param("ssi", $subject_name, $class_time, $teacher_id);
             $stmt->execute();
             $stmt->close();
-            $message = "✅ Subject added successfully.";
 
-            // Log addition
+            $message = "✅ Subject added successfully.";
             log_activity($conn, $_SESSION['user_id'], $_SESSION['role'], 'Add Subject', 'Added subject: ' . $subject_name);
         } else {
             $message = "❌ Database error: " . $conn->error;
@@ -189,17 +175,6 @@ body {
     color: #17345f;
     font-size: 20px;
 }
-.profile {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.profile img {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 2px solid #17345f;
-}
 
 /* CONTENT */
 .content {
@@ -286,22 +261,19 @@ a.delete:hover {
 
   <a href="admin.php">🏠 Dashboard</a>
   <a href="manage_users.php">👥 Manage Users</a>
-  <a href="manage_subjects.php">📘 Manage Subjects</a>
+  <a href="manage_subjects.php" class="active">📘 Manage Subjects</a>
   <a href="manage_classes.php">🏫 Manage Classes</a>
   <a href="attendance_report.php">📊 Attendance Reports</a>
-  <a href="assign_students.php" >🎓 Assign Students</a>
+  <a href="assign_students.php">🎓 Assign Students</a>
   <a href="activity_log.php">🕒 Activity Log</a>
-  <a href="user_feedback.php" >💬 Feedback</a>
+  <a href="user_feedback.php">💬 Feedback</a>
   <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
+
 <!-- MAIN -->
 <div class="main">
     <div class="topbar">
         <h1>Manage Subjects</h1>
-        <div class="profile">
-            <span>👋 <?= htmlspecialchars($admin_name); ?></span>
-            <img src="../uploads/admins/default.png" alt="Profile">
-        </div>
     </div>
 
     <div class="content">

@@ -4,29 +4,13 @@ ini_set('display_errors', 1);
 
 session_start();
 require '../db_connect.php';
-include __DIR__ . '/admin_header.php';
 require_once __DIR__ . '/../log_activity.php';
-include __DIR__ . '/admin_default_profile.php';
 include __DIR__ . '/admin_nav.php';
+
 // 🔒 Restrict access to admins only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login.php");
     exit();
-}
-
-$admin_id = $_SESSION['user_id'];
-$admin_name = "Admin User";
-
-// ✅ Fetch admin name if profile exists
-$stmt = $conn->prepare("SELECT full_name FROM admin_profiles WHERE user_id = ?");
-if ($stmt) {
-    $stmt->bind_param("i", $admin_id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    if ($row = $res->fetch_assoc()) {
-        $admin_name = $row['full_name'];
-    }
-    $stmt->close();
 }
 
 // ✅ Fetch the user to edit
@@ -41,23 +25,30 @@ $stmt->bind_param("i", $id);
 $stmt->execute();
 $result = $stmt->get_result();
 
-if ($result->num_rows == 0) {
+if ($result->num_rows === 0) {
     header("Location: manage_users.php");
     exit;
 }
 $user = $result->fetch_assoc();
+$stmt->close();
 
 // ✅ Handle update submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = $_POST['email'];
-    $role = $_POST['role'];
+    $email = trim($_POST['email']);
+    $role = trim($_POST['role']);
 
-    $update = $conn->prepare("UPDATE users SET email = ?, role = ? WHERE id = ?");
-    $update->bind_param("ssi", $email, $role, $id);
-    $update->execute();
+    if ($email !== "" && $role !== "") {
+        $update = $conn->prepare("UPDATE users SET email = ?, role = ? WHERE id = ?");
+        $update->bind_param("ssi", $email, $role, $id);
+        $update->execute();
+        $update->close();
 
-    header("Location: manage_users.php");
-    exit;
+        // ✅ Log activity
+        log_activity($conn, $_SESSION['user_id'], 'admin', 'Edit User', "Updated user ID: $id, email: $email, role: $role");
+
+        header("Location: manage_users.php");
+        exit;
+    }
 }
 ?>
 
@@ -145,18 +136,6 @@ body {
     color: #17345f;
     font-size: 20px;
 }
-.profile {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.profile img {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid #17345f;
-}
 
 /* CONTENT */
 .content {
@@ -216,28 +195,26 @@ button:hover {
 </style>
 </head>
 <body>
+
 <div class="sidebar">
   <img src="../ama.png" alt="ACLC Logo">
   <h2>Admin Panel</h2>
 
   <a href="admin.php">🏠 Dashboard</a>
-  <a href="manage_users.php">👥 Manage Users</a>
+  <a href="manage_users.php" class="active">👥 Manage Users</a>
   <a href="manage_subjects.php">📘 Manage Subjects</a>
   <a href="manage_classes.php">🏫 Manage Classes</a>
   <a href="attendance_report.php">📊 Attendance Reports</a>
-  <a href="assign_students.php" >🎓 Assign Students</a>
+  <a href="assign_students.php">🎓 Assign Students</a>
   <a href="activity_log.php">🕒 Activity Log</a>
-  <a href="user_feedback.php" >💬 Feedback</a>
+  <a href="user_feedback.php">💬 Feedback</a>
   <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
+
 <!-- MAIN -->
 <div class="main">
     <div class="topbar">
         <h1>Edit User</h1>
-        <div class="profile">
-            <span>👋 <?= htmlspecialchars($admin_name); ?></span>
-            <img src="../uploads/admins/default.png" alt="Profile">
-        </div>
     </div>
 
     <div class="content">
@@ -249,9 +226,9 @@ button:hover {
 
                 <label>Role</label>
                 <select name="role" required>
-                    <option value="admin" <?= $user['role'] == 'admin' ? 'selected' : '' ?>>Admin</option>
-                    <option value="teacher" <?= $user['role'] == 'teacher' ? 'selected' : '' ?>>Teacher</option>
-                    <option value="student" <?= $user['role'] == 'student' ? 'selected' : '' ?>>Student</option>
+                    <option value="admin" <?= $user['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
+                    <option value="teacher" <?= $user['role'] === 'teacher' ? 'selected' : '' ?>>Teacher</option>
+                    <option value="student" <?= $user['role'] === 'student' ? 'selected' : '' ?>>Student</option>
                 </select>
 
                 <a href="manage_users.php" class="back-btn">← Back</a>

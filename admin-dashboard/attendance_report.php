@@ -2,9 +2,9 @@
 session_start();
 require '../db_connect.php';
 require_once __DIR__ . '/../log_activity.php';
-include __DIR__ . '/admin_default_profile.php';
 include __DIR__ . '/admin_nav.php';
-// admin only
+
+// 🔒 Admin only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login.php");
     exit();
@@ -12,25 +12,24 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 $date = $_GET['date'] ?? date('Y-m-d');
 
-// ✅ Build query
+// ✅ Fetch subjects for filter dropdown
+$subjects = $conn->query("SELECT id, subject_name FROM subjects ORDER BY subject_name ASC");
+
+// ✅ Fetch attendance records
 $query = "
-SELECT a.*, s.subject_name, st.student_name
+SELECT a.date, st.student_name, s.subject_name, a.status
 FROM attendance a
 JOIN subjects s ON a.subject_id = s.id
 JOIN students st ON a.student_id = st.id
+WHERE a.date = ?
 ORDER BY a.date DESC
 ";
-
 $stmt = $conn->prepare($query);
-if (!$stmt) {
-    die("❌ SQL Prepare Failed: " . $conn->error);
-}
-
-$stmt = $conn->prepare("SELECT * FROM attendance WHERE date = ?");
 $stmt->bind_param("s", $date);
 $stmt->execute();
 $res = $stmt->get_result();
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -115,18 +114,6 @@ body {
     color: #17345f;
     font-size: 20px;
 }
-.profile {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.profile img {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid #17345f;
-}
 
 /* CONTENT */
 .content {
@@ -203,6 +190,7 @@ tr:nth-child(even) {
 </style>
 </head>
 <body>
+
 <div class="sidebar">
   <img src="../ama.png" alt="ACLC Logo">
   <h2>Admin Panel</h2>
@@ -211,67 +199,53 @@ tr:nth-child(even) {
   <a href="manage_users.php">👥 Manage Users</a>
   <a href="manage_subjects.php">📘 Manage Subjects</a>
   <a href="manage_classes.php">🏫 Manage Classes</a>
-  <a href="attendance_report.php">📊 Attendance Reports</a>
-  <a href="assign_students.php" >🎓 Assign Students</a>
+  <a href="attendance_report.php" class="active">📊 Attendance Reports</a>
+  <a href="assign_students.php">🎓 Assign Students</a>
   <a href="activity_log.php">🕒 Activity Log</a>
-  <a href="user_feedback.php" >💬 Feedback</a>
+  <a href="user_feedback.php">💬 Feedback</a>
   <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
+
 <!-- MAIN -->
 <div class="main">
-    <div class="topbar">
-        <h1>Attendance Reports</h1>
-        <div class="profile">
-            <span>👋 <?= htmlspecialchars($admin_name); ?></span>
-            <img src="../uploads/admins/default.png" alt="Profile">
-        </div>
-    </div>
+  <div class="topbar">
+    <h1>Attendance Reports</h1>
+  </div>
 
-    <div class="content">
-        <h2>📅 Attendance Report</h2>
+  <div class="content">
+    <h2>📅 Attendance Report</h2>
 
-        <form class="filter" method="GET">
-            <label for="date">Date:</label>
-            <input type="date" id="date" name="date" value="<?= htmlspecialchars($date); ?>">
+    <form class="filter" method="GET">
+      <label for="date">Date:</label>
+      <input type="date" id="date" name="date" value="<?= htmlspecialchars($date); ?>">
+      <button type="submit">Filter</button>
+    </form>
 
-            <label for="class_id">Subject:</label>
-            <select name="class_id" id="class_id">
-                <option value="0">All Subjects</option>
-                <?php while ($s = $subjects->fetch_assoc()): ?>
-                    <option value="<?= $s['id'] ?>" <?= $class_id == $s['id'] ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($s['subject_name']) ?>
-                    </option>
-                <?php endwhile; ?>
-            </select>
-
-            <button type="submit">Filter</button>
-        </form>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Student</th>
-                    <th>Subject</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if ($res->num_rows > 0): ?>
-                    <?php while ($r = $res->fetch_assoc()): ?>
-                        <tr>
-                            <td><?= htmlspecialchars($r['date']) ?></td>
-                            <td><?= htmlspecialchars($r['student_name'] ?: '—') ?></td>
-                            <td><?= htmlspecialchars($r['subject_name'] ?: '—') ?></td>
-                            <td><?= htmlspecialchars($r['status']) ?></td>
-                        </tr>
-                    <?php endwhile; ?>
-                <?php else: ?>
-                    <tr><td colspan="4" class="no-records">No attendance records found.</td></tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Student</th>
+          <th>Subject</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if ($res->num_rows > 0): ?>
+          <?php while ($r = $res->fetch_assoc()): ?>
+            <tr>
+              <td><?= htmlspecialchars($r['date']) ?></td>
+              <td><?= htmlspecialchars($r['student_name'] ?: '—') ?></td>
+              <td><?= htmlspecialchars($r['subject_name'] ?: '—') ?></td>
+              <td><?= htmlspecialchars($r['status']) ?></td>
+            </tr>
+          <?php endwhile; ?>
+        <?php else: ?>
+          <tr><td colspan="4" class="no-records">No attendance records found.</td></tr>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
 </div>
 </body>
 </html>

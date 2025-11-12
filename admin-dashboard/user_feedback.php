@@ -2,25 +2,12 @@
 session_start();
 require '../db_connect.php';
 require_once __DIR__ . '/../log_activity.php';
-include __DIR__ . '/admin_default_profile.php';
 include __DIR__ . '/admin_nav.php';
+
 // 🔒 Restrict access to admins only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login.php");
     exit();
-}
-
-$admin_id = $_SESSION['user_id'];
-$admin_name = "Admin User";
-
-// ✅ Fetch admin name if available
-$stmt = $conn->prepare("SELECT full_name FROM admin_profiles WHERE user_id = ?");
-if ($stmt) {
-    $stmt->bind_param("i", $admin_id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    if ($row = $res->fetch_assoc()) $admin_name = $row['full_name'];
-    $stmt->close();
 }
 
 // ✅ Fetch all feedback (sorted by newest first)
@@ -114,18 +101,6 @@ body {
     color: #17345f;
     font-size: 20px;
 }
-.profile {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.profile img {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid #17345f;
-}
 
 /* Content */
 .content {
@@ -202,24 +177,21 @@ h2 {
   <a href="manage_subjects.php">📘 Manage Subjects</a>
   <a href="manage_classes.php">🏫 Manage Classes</a>
   <a href="attendance_report.php">📊 Attendance Reports</a>
-  <a href="assign_students.php" >🎓 Assign Students</a>
+  <a href="assign_students.php">🎓 Assign Students</a>
   <a href="activity_log.php">🕒 Activity Log</a>
-  <a href="user_feedback.php" >💬 Feedback</a>
+  <a href="user_feedback.php" class="active">💬 Feedback</a>
   <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
+
 <div class="main">
   <div class="topbar">
     <h1>User Feedback</h1>
-    <div class="profile">
-      <span>👋 <?= htmlspecialchars($admin_name); ?></span>
-      <img src="../uploads/admins/default.png" alt="Profile">
-    </div>
   </div>
 
   <div class="content">
     <h2>💬 Feedback Messages</h2>
 
-    <?php if ($feedbacks->num_rows > 0): ?>
+    <?php if ($feedbacks && $feedbacks->num_rows > 0): ?>
       <?php while($f = $feedbacks->fetch_assoc()): ?>
         <div class="message-box">
           <div class="feedback-header">

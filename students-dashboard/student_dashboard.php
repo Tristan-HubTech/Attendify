@@ -3,7 +3,7 @@ session_start();
 require '../db_connect.php';
 require '../log_activity.php';
 
-// ✅ Restrict to students
+// ✅ Restrict to students only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
     header("Location: ../login.php");
     exit();
@@ -12,24 +12,42 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
 $user_id = $_SESSION['user_id'];
 $email = $_SESSION['email'];
 
-/* ✅ Get actual student record */
-$stmt = $conn->prepare("SELECT * FROM students WHERE user_id = ?");
+/* ✅ Step 1: Get actual student record safely */
+$stmt = $conn->prepare("SELECT * FROM student_profiles WHERE user_id = ?");
+if (!$stmt) {
+    die("SQL Prepare Error (student_profiles): " . $conn->error);
+}
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $student = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
+/* ✅ Step 2: Auto-create student record in 'students' table if missing */
 if (!$student) {
-    echo "<div style='color:red; text-align:center; font-family:Arial; margin-top:100px;'>
-            ⚠️ Student record not found. Please complete your profile first.
-          </div>";
-    exit();
+    // Create a placeholder entry if no record exists
+    $insert = $conn->prepare("INSERT INTO students (user_id, student_name, parent_phone, profile_image) VALUES (?, '', '', 'default.png')");
+    if (!$insert) {
+        die("SQL Prepare Error (insert student): " . $conn->error);
+    }
+    $insert->bind_param("i", $user_id);
+    $insert->execute();
+    $insert->close();
+
+    // Fetch it again after creating
+    $stmt = $conn->prepare("SELECT * FROM students WHERE user_id = ?");
+    if (!$stmt) {
+        die("SQL Prepare Error (students re-fetch): " . $conn->error);
+    }
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $student = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
 }
 
-// ✅ Get the real student_id from students table
+/* ✅ Step 3: Determine real student ID */
 $real_student_id = $student['id'];
 
-/* ✅ Attendance Summary */
+/* ✅ Step 4: Attendance Summary */
 $summary = ['Present' => 0, 'Absent' => 0, 'Late' => 0];
 $q = $conn->prepare("
     SELECT status, COUNT(*) AS count
@@ -37,15 +55,17 @@ $q = $conn->prepare("
     WHERE student_id = ?
     GROUP BY status
 ");
-$q->bind_param("i", $real_student_id);
-$q->execute();
-$res = $q->get_result();
-while ($row = $res->fetch_assoc()) {
-    $summary[$row['status']] = $row['count'];
+if ($q) {
+    $q->bind_param("i", $real_student_id);
+    $q->execute();
+    $res = $q->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $summary[$row['status']] = $row['count'];
+    }
+    $q->close();
 }
-$q->close();
 
-/* ✅ Recent Attendance */
+/* ✅ Step 5: Recent Attendance */
 $list = $conn->prepare("
     SELECT a.date, s.subject_name, a.status
     FROM attendance a
@@ -54,14 +74,17 @@ $list = $conn->prepare("
     ORDER BY a.date DESC
     LIMIT 10
 ");
-$list->bind_param("i", $real_student_id);
-$list->execute();
-$records = $list->get_result();
-$list->close();
+if ($list) {
+    $list->bind_param("i", $real_student_id);
+    $list->execute();
+    $records = $list->get_result();
+    $list->close();
+}
 
-/* ✅ Log dashboard visit */
+/* ✅ Step 6: Log dashboard visit */
 log_activity($conn, $user_id, 'student', 'View Dashboard', 'Opened student dashboard');
 
+/* ✅ Step 7: Determine profile picture */
 $profile_pic = "../uploads/students/" . ($student['profile_image'] ?: "default.png");
 ?>
 <!DOCTYPE html>
@@ -206,7 +229,7 @@ tr:nth-child(even) { background: #f9f9f9; }
 <div class="sidebar">
     <img src="../ama.png" alt="ACLC Logo">
     <h2>Student Panel</h2>
-    <a href="student_dashboard.php">📊 Dashboard</a>
+    <a href="student_dashboard.php" class="active">📊 Dashboard</a>
     <a href="profile.php">👤 Profile</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
@@ -235,7 +258,7 @@ tr:nth-child(even) { background: #f9f9f9; }
                 <th>Subject</th>
                 <th>Status</th>
             </tr>
-            <?php if ($records->num_rows > 0): ?>
+            <?php if (!empty($records) && $records->num_rows > 0): ?>
                 <?php while ($row = $records->fetch_assoc()): ?>
                 <tr>
                     <td><?= htmlspecialchars($row['date']); ?></td>

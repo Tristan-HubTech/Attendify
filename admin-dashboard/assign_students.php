@@ -3,6 +3,8 @@ session_start();
 require '../db_connect.php';
 require '../log_activity.php';
 include __DIR__ . '/admin_nav.php';
+
+// 🔒 Admin only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login.php");
     exit();
@@ -51,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['subject_id'])) {
     // Clear old enrollments
     $conn->query("DELETE FROM enrollments WHERE subject_id = $subject_id");
 
-    // Insert new ones
+    // Insert new enrollments
     foreach ($selected_students as $sid) {
         $stmt = $conn->prepare("INSERT INTO enrollments (student_id, subject_id) VALUES (?, ?)");
         $stmt->bind_param("ii", $sid, $subject_id);
@@ -64,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['subject_id'])) {
 }
 
 /* ================================
-   ✅ Fetch currently enrolled students (for the selected subject)
+   ✅ Fetch currently enrolled students
 ================================ */
 $current_subject_id = $_POST['subject_id'] ?? null;
 $current_enrollments = [];
@@ -129,11 +131,12 @@ button:hover { background:#e21b23; }
   <a href="manage_subjects.php">📘 Manage Subjects</a>
   <a href="manage_classes.php">🏫 Manage Classes</a>
   <a href="attendance_report.php">📊 Attendance Reports</a>
-  <a href="assign_students.php" >🎓 Assign Students</a>
+  <a href="assign_students.php" class="active">🎓 Assign Students</a>
   <a href="activity_log.php">🕒 Activity Log</a>
-  <a href="user_feedback.php" >💬 Feedback</a>
+  <a href="user_feedback.php">💬 Feedback</a>
   <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>
+
 <!-- MAIN CONTENT -->
 <div class="main">
   <div class="topbar">
