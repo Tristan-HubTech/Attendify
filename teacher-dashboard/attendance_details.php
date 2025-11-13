@@ -1,7 +1,7 @@
 <?php
 session_start();
 require '../db_connect.php';
-
+require '../log_activity.php';
 // ✅ Restrict access to teachers only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
     header("Location: ../login.php");

@@ -156,7 +156,6 @@ tr:nth-child(even) {
 <div class="sidebar">
   <img src="../ama.png" alt="ACLC Logo">
   <h2>Admin Panel</h2>
-
   <a href="admin.php">🏠 Dashboard</a>
   <a href="manage_users.php">👥 Manage Users</a>
   <a href="manage_subjects.php">📘 Manage Subjects</a>

@@ -7,7 +7,6 @@ require '../log_activity.php';
 function safe_prepare($conn, $sql) {
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
-        // Log a clear message to a file and return false
         $err = date("Y-m-d H:i:s") . " | SQL Prepare Error: " . $conn->error . " | Query: " . $sql . PHP_EOL;
         @file_put_contents(__DIR__ . "/../logs/sql_errors.log", $err, FILE_APPEND);
         return false;
@@ -15,7 +14,7 @@ function safe_prepare($conn, $sql) {
     return $stmt;
 }
 
-// ✅ Restrict access to teachers only
+// Restrict access to teachers only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
     header("Location: ../login.php");
     exit();
@@ -44,7 +43,6 @@ if ($stmt !== false) {
     }
     $stmt->close();
 } else {
-    // If prepare failed, continue with safe defaults and show a soft message
     $message = "⚠️ Warning: Could not load teacher profile (check logs).";
 }
 
@@ -60,11 +58,11 @@ if ($stmt !== false) {
     $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
 } else {
-    $message = $message ? $message . " Also failed to load subjects." : "⚠️ Warning: Could not load subjects (check logs).";
+    $message = "⚠️ Warning: Could not load subjects.";
 }
 
 // =========================
-// Handle remove student (enrollment) safely
+// Handle remove student
 // =========================
 if (isset($_GET['remove']) && isset($_GET['subject'])) {
     $student_id = intval($_GET['remove']);
@@ -78,7 +76,7 @@ if (isset($_GET['remove']) && isset($_GET['subject'])) {
         header("Location: attendance.php?subject_id=" . $subject_id . "&msg=removed");
         exit();
     } else {
-        $message = "❌ Failed to remove student (see logs).";
+        $message = "❌ Failed to remove student.";
     }
 }
 
@@ -97,9 +95,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_attendance'])) {
     } else {
         foreach ($statuses as $student_id => $status) {
             $student_id = intval($student_id);
-            $status = substr(trim($status), 0, 50); // sanitize
+            $status = substr(trim($status), 0, 50);
 
-            // Check existence (prepare)
+            // Check if entry exists
             $sql = "SELECT id FROM attendance WHERE student_id = ? AND subject_id = ? AND date = ?";
             $check = safe_prepare($conn, $sql);
             if ($check === false) continue;
@@ -108,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_attendance'])) {
             $check->store_result();
 
             if ($check->num_rows === 0) {
-                // insert
+                // Insert
                 $sql = "INSERT INTO attendance (student_id, subject_id, date, status, created_at) VALUES (?, ?, ?, ?, NOW())";
                 $insert = safe_prepare($conn, $sql);
                 if ($insert !== false) {
@@ -118,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_attendance'])) {
                     $count++;
                 }
             } else {
-                // update existing (in case teacher re-marks)
+                // Update
                 $sql = "UPDATE attendance SET status = ?, updated_at = NOW() WHERE student_id = ? AND subject_id = ? AND date = ?";
                 $update = safe_prepare($conn, $sql);
                 if ($update !== false) {
@@ -130,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_attendance'])) {
             }
             $check->close();
 
-            // Fetch student and parent's phone
+            // Fetch parent phone
             $sql = "SELECT student_name, parent_phone FROM students WHERE id = ?";
             $s = safe_prepare($conn, $sql);
             if ($s === false) continue;
@@ -139,47 +137,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_attendance'])) {
             $student = $s->get_result()->fetch_assoc();
             $s->close();
 
-            $parent_phone = isset($student['parent_phone']) ? trim($student['parent_phone']) : '';
-            if ($parent_phone === '' || $parent_phone === null) {
-                // skip SMS if no phone
-                continue;
-            }
+            $parent_phone = $student['parent_phone'] ?? '';
 
-            // call send_sms.php (local internal endpoint)
-            $sms_url = "http://localhost/Attendify/teacher-dashboard/send_sms.php";
-            $postData = [
-                'student_id' => $student_id,
-                'status' => $status
-            ];
+            if ($parent_phone !== '') {
+                // Send SMS through send_sms.php
+                $sms_url = "http://localhost/Attendify/teacher-dashboard/send_sms.php";
+                $postData = [
+                    'student_id' => $student_id,
+                    'status' => $status
+                ];
 
-            // use cURL and suppress fatal behavior; log errors
-            $ch = curl_init($sms_url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
-            $response = curl_exec($ch);
-            $curlErr = curl_error($ch);
-            curl_close($ch);
+                $ch = curl_init($sms_url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+                $response = curl_exec($ch);
+                curl_close($ch);
 
-            if ($curlErr) {
-                // log
-                @file_put_contents(__DIR__ . "/../logs/sms_errors.log", date("Y-m-d H:i:s") . " | CURL Error when sending SMS: " . $curlErr . PHP_EOL, FILE_APPEND);
-            } else {
                 $sms_sent++;
             }
-        } // foreach statuses
+        }
 
-        $message = "✅ Attendance saved/updated for today ($count record/s). SMS sent to $sms_sent parent/s.";
+        $message = "✅ Attendance saved ($count records). SMS sent: $sms_sent.";
     }
 }
 
 // =========================
-// Fetch enrolled students for the selected subject
+// Fetch enrolled students WITH PROFILE IMAGE
 // =========================
 $students = [];
 if ($selected_subject_id) {
     $sql = "
-        SELECT s.id, s.student_name, s.parent_phone
+        SELECT s.id, s.student_name, s.parent_phone, s.profile_image
         FROM enrollments e
         JOIN students s ON e.student_id = s.id
         WHERE e.subject_id = ?
@@ -192,7 +181,7 @@ if ($selected_subject_id) {
         $students = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
     } else {
-        $message = $message ? $message . " Could not load enrolled students." : "⚠️ Could not load enrolled students (see logs).";
+        $message = "⚠️ Could not load enrolled students.";
     }
 }
 ?>
@@ -210,15 +199,17 @@ body { font-family: Arial, sans-serif; background: #f4f6fa; margin: 0; }
 table { width:100%; border-collapse:collapse; background:white; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
 th,td { padding:10px; border:1px solid #ddd; text-align:center; }
 th { background:#17345f; color:white; }
+img.pfp { width:45px; height:45px; border-radius:50%; object-fit:cover; }
 button { background:#17345f; color:white; border:none; border-radius:6px; padding:8px 15px; cursor:pointer; }
 button:hover { background:#e21b23; }
 .warning { color:red; font-weight:bold; }
 .message { background:#e7f3e7; color:#2d662d; padding:10px; border-radius:5px; margin-bottom:10px; }
-.remove-btn { background:#c62828; border:none; color:white; border-radius:6px; padding:6px 10px; cursor:pointer; }
+.remove-btn { background:#c62828; color:white; border-radius:6px; padding:6px 10px; cursor:pointer; }
 .remove-btn:hover { background:#a51616; }
 </style>
 </head>
 <body>
+
 <div class="sidebar">
   <img src="../ama.png" width="80%">
   <h2>Teacher Panel</h2>
@@ -233,6 +224,7 @@ button:hover { background:#e21b23; }
 
 <div class="main">
   <h1>📋 Mark Attendance</h1>
+
   <?php if (!empty($message)): ?>
     <div class="message"><?= $message ?></div>
   <?php endif; ?>
@@ -250,21 +242,49 @@ button:hover { background:#e21b23; }
 
     <?php if ($selected_subject_id): ?>
       <p><b>Date:</b> <?= date("F j, Y"); ?></p>
+
       <table>
-        <tr><th>Student</th><th>Parent Contact</th><th>Present</th><th>Absent</th><th>Late</th><th>Remove</th></tr>
+        <tr>
+          <th>Profile</th>
+          <th>Student</th>
+          <th>Parent Contact</th>
+          <th>Present</th>
+          <th>Absent</th>
+          <th>Late</th>
+          <th>Remove</th>
+        </tr>
+
         <?php if ($students): foreach ($students as $s): ?>
           <tr>
+            <td>
+              <img class="pfp" src="../uploads/students/<?= htmlspecialchars($s['profile_image'] ?: 'default.png') ?>">
+            </td>
+
             <td><?= htmlspecialchars($s['student_name']); ?></td>
-            <td><?= ($s['parent_phone'] === null || $s['parent_phone'] === '') ? '<span class="warning">⚠️ No number</span>' : htmlspecialchars($s['parent_phone']); ?></td>
+
+            <td>
+              <?= empty($s['parent_phone'])
+                ? '<span class="warning">⚠️ No number</span>'
+                : htmlspecialchars($s['parent_phone']); ?>
+            </td>
+
             <td><input type="radio" name="attendance[<?= intval($s['id']) ?>]" value="Present"></td>
             <td><input type="radio" name="attendance[<?= intval($s['id']) ?>]" value="Absent"></td>
             <td><input type="radio" name="attendance[<?= intval($s['id']) ?>]" value="Late"></td>
-            <td><button type="button" class="remove-btn" onclick="removeStudent(<?= intval($s['id']) ?>, <?= intval($selected_subject_id) ?>)">🗑️</button></td>
+
+            <td>
+              <button type="button" class="remove-btn"
+                onclick="removeStudent(<?= intval($s['id']) ?>, <?= intval($selected_subject_id) ?>)">
+                🗑️
+              </button>
+            </td>
           </tr>
         <?php endforeach; else: ?>
-          <tr><td colspan="6"><i>No students enrolled for this subject.</i></td></tr>
+          <tr><td colspan="7"><i>No students enrolled for this subject.</i></td></tr>
         <?php endif; ?>
+
       </table>
+
       <br>
       <button type="submit" name="save_attendance">💾 Save Attendance</button>
     <?php endif; ?>
@@ -274,21 +294,11 @@ button:hover { background:#e21b23; }
 <script>
 function removeStudent(studentId, subjectId) {
   if (confirm("Remove this student from the subject?")) {
-    window.location.href = "attendance.php?remove=" + encodeURIComponent(studentId) + "&subject=" + encodeURIComponent(subjectId);
+    window.location.href =
+      "attendance.php?remove=" + studentId + "&subject=" + subjectId;
   }
 }
-
-// Auto-hide success message after 5 seconds
-document.addEventListener("DOMContentLoaded", () => {
-  const messageBox = document.querySelector(".message");
-  if (messageBox) {
-    setTimeout(() => {
-      messageBox.style.transition = "opacity 0.5s";
-      messageBox.style.opacity = "0";
-      setTimeout(() => messageBox.remove(), 500); // remove after fade
-    }, 5000); // 5 seconds
-  }
-});
 </script>
+
 </body>
 </html>

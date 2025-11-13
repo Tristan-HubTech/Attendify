@@ -132,9 +132,9 @@ button:hover { background:#e21b23; }
 
   <div class="content">
     <?php if ($message): ?>
+       <span>👋 <?= htmlspecialchars($_SESSION['email']); ?></span>
       <div class="message"><?= htmlspecialchars($message) ?></div>
     <?php endif; ?>
-
     <div class="form-container">
       <form method="POST">
         <h3>Step 1: Select Subject</h3>

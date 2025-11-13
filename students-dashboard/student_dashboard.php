@@ -229,7 +229,7 @@ tr:nth-child(even) { background: #f9f9f9; }
 <div class="sidebar">
     <img src="../ama.png" alt="ACLC Logo">
     <h2>Student Panel</h2>
-    <a href="student_dashboard.php" class="active">📊 Dashboard</a>
+    <a href="student_dashboard.php" >📊 Dashboard</a>
     <a href="profile.php">👤 Profile</a>
     <a href="../logout.php" class="logout">🚪 Logout</a>
 </div>

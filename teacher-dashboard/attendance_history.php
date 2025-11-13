@@ -1,7 +1,7 @@
 <?php
 session_start();
 require '../db_connect.php';
-
+require '../log_activity.php';
 // ✅ Restrict access to teachers only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
     header("Location: ../login.php");
@@ -176,8 +176,7 @@ tr:nth-child(even) { background: #f9f9f9; }
   <div class="topbar">
     <h1>🕓 Attendance History (Daily Summary)</h1>
     <div class="profile">
-      <span>👋 <?= htmlspecialchars($teacher_name); ?></span>
-      <img src="<?= htmlspecialchars($profile_image); ?>" alt="Profile">
+     
     </div>
   </div>
 

@@ -279,8 +279,7 @@ button:hover {
     <div class="topbar">
         <h1>Manage Subjects</h1>
         <div class="profile">
-            <span>👋 <?= htmlspecialchars($teacher_name); ?></span>
-            <img src="../uploads/teachers/default.png" alt="Profile">
+       
         </div>
     </div>
 

@@ -220,7 +220,7 @@ button:hover {
         <h1>💬 Feedback Form</h1>
         <div class="profile">
             <span>👋 <?= htmlspecialchars($_SESSION['email']); ?></span>
-            <img src="../uploads/teachers/default.png" alt="Profile">
+             <img src="<?= htmlspecialchars($profile_image); ?>" alt="Profile">
         </div>
     </div>
 

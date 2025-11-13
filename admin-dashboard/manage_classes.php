@@ -250,7 +250,7 @@ tr:nth-child(even) {
 <div class="main">
   <div class="topbar">
     <h1>Manage Classes</h1>
-    <div>👋 <?= htmlspecialchars($admin_name); ?></div>
+
   </div>
 
   <div class="content">
